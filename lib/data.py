@@ -21,6 +21,16 @@ class Dataset:
         self.input_size = X.shape[0]
         self.num_classes = Y.shape[0]
 
+    def shuffle(self):
+        i = np.random.permutation(self.n)
+
+        return Dataset(self.X[:, i], self.Y[:, i], self.y[:, i])
+
+    def batch(self, start, end):
+        return Dataset(self.X[:, start:end],
+                       self.Y[:, start:end],
+                       self.y[:, start:end])
+
     def subsample(self, dims=None, n=None):
         dims = dims if dims is not None else self.input_size
         n = n if n is not None else self.n

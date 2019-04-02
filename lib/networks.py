@@ -1,12 +1,62 @@
 from abc import ABC, abstractmethod
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 
 NUM_GRAD_DELTA = 1e-6
+ETA_DEFAULT = 0.01
+N_BATCH_DEFAULT = 100
+N_EPOCHS_DEFAULT = 1
+N_DEAD_EPOCHS_MAX_DEFAULT = 1
+
+
+class TrainHistory:
+    def __init__(self):
+        self.train_cost = []
+        self.train_accuracy = []
+        self.val_cost = []
+        self.val_accuracy = []
+
+        self.length = 0
+
+    def extend(self, network, ds_train, ds_val):
+        self.train_cost.append(network.cost(ds_train))
+        self.train_accuracy.append(network.accuracy(ds_train))
+        self.val_cost.append(network.cost(ds_val))
+        self.val_accuracy.append(network.accuracy(ds_val))
+
+        self.length += 1
+
+    def visualize(self, title=None):
+        _, axes = plt.subplots(1, 2, figsize=(10, 5))
+
+        ep = range(1, self.length + 1)
+
+        axes[0].plot(ep, self.train_cost, label="Training Cost")
+        axes[0].plot(ep, self.val_cost, label="Validation Cost")
+        axes[1].plot(ep, self.train_accuracy, label="Training Accuracy")
+        axes[1].plot(ep, self.val_accuracy, label="Validation Accuracy")
+
+        axes[0].set_xlabel("Epoch")
+        axes[0].set_ylabel("Loss")
+
+        axes[1].set_xlabel("Epoch")
+        axes[1].set_ylabel("Accuracy")
+
+        for ax in axes:
+            if title is not None:
+                ax.set_title(title)
+
+            ax.legend()
+            ax.grid()
 
 
 class Network(ABC):
+    @abstractmethod
+    def params(self):
+        pass
+
     @abstractmethod
     def evaluate(self, ds):
         pass
@@ -19,12 +69,79 @@ class Network(ABC):
     def gradients(self, ds, numerical=False, h=NUM_GRAD_DELTA):
         pass
 
+    @abstractmethod
+    def update(self, gradients, eta):
+        pass
+
     def accuracy(self, ds):
         P = self.evaluate(ds)
 
         correct = np.count_nonzero(ds.y == P.argmax(axis=0))
 
         return correct / ds.n
+
+    def train(self,
+              ds_train,
+              ds_val,
+              eta=ETA_DEFAULT,
+              n_batch=N_BATCH_DEFAULT,
+              n_epochs=N_EPOCHS_DEFAULT,
+              n_dead_epochs_max=N_DEAD_EPOCHS_MAX_DEFAULT,
+              shuffle=False,
+              stop_early=False,
+              verbose=False):
+
+        # keep track of loss and accuracy histories
+        history = TrainHistory()
+
+        # keep track of best parameters
+        if stop_early:
+            acc_best = 0
+            params_best = None
+            dead_epochs = 0
+
+        for ep in range(n_epochs):
+            # optionally shuffle training data
+            if shuffle:
+                ds_train = ds_train.shuffle()
+
+            n_batches = ds_train.n // n_batch
+
+            for i in range(n_batches):
+                # display progress
+                if verbose:
+                    fmt = f"epoch {ep + 1}/{n_epochs}, batch {i + 1}/{n_batches}"
+
+                    if ep < n_epochs - 1 or i < (ds_train.n // n_batch) - 1:
+                        print(fmt.ljust(80) + "\r", end='', flush=True)
+                    else:
+                        print(fmt.ljust(80), flush=True)
+
+                # form batch
+                i_start = i * n_batch
+                i_end = (i + 1) * n_batch
+
+                # update parameters
+                gradients = self.gradients(ds_train.batch(i_start, i_end))
+                self.update(gradients, eta)
+
+            # extend history
+            history.extend(self, ds_train, ds_val)
+
+            if stop_early:
+                acc_last = history.val_accuracy[-1]
+
+                if acc_last > acc_best:
+                    acc_best = acc_last
+                    params_best = [p.copy() for p in self.params()]
+                    dead_epochs = 0
+                else:
+                    dead_epochs += 1
+
+                    if dead_epochs >= n_dead_epochs_max:
+                        break
+
+        return history
 
 
 class SingleLayerFullyConnected(Network):
@@ -41,6 +158,9 @@ class SingleLayerFullyConnected(Network):
 
     def _rand_param(self, shape):
         return self.PARAM_STD * np.random.randn(*shape).astype(self.PARAM_DTYPE)
+
+    def params(self):
+        return [self.W, self.b]
 
     def evaluate(self, ds):
         s = self.W @ ds.X + self.b
@@ -86,4 +206,8 @@ class SingleLayerFullyConnected(Network):
             grad_W = 1 / ds.n * G @ ds.X.T + 2 * self.alpha * self.W
             grad_b = 1 / ds.n * G.sum(axis=1, keepdims=True)
 
-        return grad_W, grad_b
+        return [grad_W, grad_b]
+
+    def update(self, gradients, eta):
+        self.W -= eta * gradients[0]
+        self.b -= eta * gradients[1]
