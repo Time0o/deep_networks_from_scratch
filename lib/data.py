@@ -12,10 +12,11 @@ TEST_BATCH_FMT = 'test_batch.mat'
 
 
 class Dataset:
-    def __init__(self, X, Y, y):
+    def __init__(self, X, Y, y, labels=None):
         self.X = X
         self.Y = Y
         self.y = y
+        self.labels = labels
 
         self.n = X.shape[1]
         self.input_size = X.shape[0]
@@ -157,9 +158,9 @@ class Cifar:
         else:
             raise ValueError("'normalize' must be either 'scale' or 'zscore'")
 
-        return Dataset(data_train, labels_cat_train, labels_train), \
-               Dataset(data_val, labels_cat_val, labels_val), \
-               Dataset(data_test, labels_cat_test, labels_test)
+        return Dataset(data_train, labels_cat_train, labels_train, self._labels), \
+               Dataset(data_val, labels_cat_val, labels_val, self._labels), \
+               Dataset(data_test, labels_cat_test, labels_test, self._labels)
 
     def preview(self, which='train', n=5, shuffle=False):
         _, axes = plt.subplots(len(self._labels), n,

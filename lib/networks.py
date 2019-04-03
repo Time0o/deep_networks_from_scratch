@@ -4,6 +4,9 @@ from abc import ABC, abstractmethod
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
 
 
 NUM_GRAD_DELTA = 1e-6
@@ -19,6 +22,7 @@ class TrainHistory:
         self.train_accuracy = []
         self.val_cost = []
         self.val_accuracy = []
+        self.final_network = None
 
         self.length = 0
 
@@ -29,6 +33,9 @@ class TrainHistory:
         self.val_accuracy.append(network.accuracy(ds_val))
 
         self.length += 1
+
+    def add_final_network(self, network):
+        self.final_network = network
 
     def visualize(self, axes=None, title=None):
         if axes is None:
@@ -176,7 +183,36 @@ class Network(ABC):
         if find_best_params:
             self.params = params_best
 
+        history.add_final_network(self)
+
         return history
+
+    def visualize_performance(self, ds, ax=None, title=None):
+        if ax is None:
+            _, ax = plt.subplots(1, 1, figsize=(8, 8))
+
+        acc = self.accuracy(ds)
+
+        y_pred = np.argmax(self.evaluate(ds), axis=0)
+
+        df = pd.DataFrame(confusion_matrix(np.squeeze(ds.y), y_pred),
+                          index=ds.labels,
+                          columns=ds.labels)
+
+        hm = sns.heatmap(
+            df, cbar=False, annot=True, fmt='d', cmap='Blues', ax=ax)
+
+        xlabels = hm.xaxis.get_ticklabels()
+        hm.xaxis.set_ticklabels(xlabels, rotation=45, ha='right')
+
+        if title is not None:
+            fmt = title + ", Total Accuracy is {:.3f}"
+        else:
+            fmt = "Total Accuracy is {:.3f}"
+
+        ax.set_title(fmt.format(acc))
+
+        plt.tight_layout()
 
 
 class SingleLayerFullyConnected(Network):
