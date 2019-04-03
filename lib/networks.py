@@ -1,3 +1,4 @@
+import pickle
 from abc import ABC, abstractmethod
 
 import matplotlib.pyplot as plt
@@ -50,6 +51,15 @@ class TrainHistory:
 
             ax.legend()
             ax.grid()
+
+    def save(self, path):
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
+
+    @staticmethod
+    def load(path):
+        with open(path, 'rb') as f:
+            return pickle.load(f)
 
 
 class Network(ABC):
