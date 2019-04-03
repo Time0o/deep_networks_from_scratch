@@ -1,3 +1,4 @@
+import os
 import pickle
 from abc import ABC, abstractmethod
 
@@ -29,8 +30,9 @@ class TrainHistory:
 
         self.length += 1
 
-    def visualize(self, title=None):
-        _, axes = plt.subplots(1, 2, figsize=(10, 5))
+    def visualize(self, axes=None, title=None):
+        if axes is None:
+            _, axes = plt.subplots(1, 2, figsize=(10, 5))
 
         ep = range(1, self.length + 1)
 
@@ -52,14 +54,27 @@ class TrainHistory:
             ax.legend()
             ax.grid()
 
-    def save(self, path):
-        with open(path, 'wb') as f:
+    def save(self, dirpath, params=None, postfix=None):
+        with open(self._path(dirpath, params, postfix), 'wb') as f:
             pickle.dump(self, f)
 
-    @staticmethod
-    def load(path):
-        with open(path, 'rb') as f:
+    @classmethod
+    def load(cls, dirpath, params=None, postfix=None):
+        with open(cls._path(dirpath, params, postfix), 'rb') as f:
             return pickle.load(f)
+
+    @staticmethod
+    def _path(dirpath, params=None, postfix=None):
+        path = os.path.join(dirpath, 'history')
+
+        if params is not None:
+            for p, val in params:
+                path += '_' + p + str(val).replace('.', '_')
+
+        if postfix is not None:
+            path += '_' + postfix
+
+        return path + '.pickle'
 
 
 class Network(ABC):
