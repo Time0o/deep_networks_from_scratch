@@ -53,6 +53,7 @@ class TrainHistory:
 
 
 class Network(ABC):
+    @property
     @abstractmethod
     def params(self):
         pass
@@ -89,6 +90,7 @@ class Network(ABC):
               n_dead_epochs_max=N_DEAD_EPOCHS_MAX_DEFAULT,
               shuffle=False,
               stop_early=False,
+              find_best_params=False,
               verbose=False):
 
         # keep track of loss and accuracy histories
@@ -97,8 +99,10 @@ class Network(ABC):
         # keep track of best parameters
         if stop_early:
             acc_best = 0
-            params_best = None
             dead_epochs = 0
+
+        if find_best_params:
+            params_best = None
 
         for ep in range(n_epochs):
             # optionally shuffle training data
@@ -128,18 +132,24 @@ class Network(ABC):
             # extend history
             history.extend(self, ds_train, ds_val)
 
-            if stop_early:
-                acc_last = history.val_accuracy[-1]
+            acc_last = history.val_accuracy[-1]
 
+            if stop_early:
                 if acc_last > acc_best:
                     acc_best = acc_last
-                    params_best = [p.copy() for p in self.params()]
                     dead_epochs = 0
                 else:
                     dead_epochs += 1
 
                     if dead_epochs >= n_dead_epochs_max:
                         break
+
+            if find_best_params:
+                if acc_last > acc_best:
+                    params_best = [p.copy() for p in self.params]
+
+        if find_best_params:
+            self.params = params_best
 
         return history
 
@@ -159,8 +169,13 @@ class SingleLayerFullyConnected(Network):
     def _rand_param(self, shape):
         return self.PARAM_STD * np.random.randn(*shape).astype(self.PARAM_DTYPE)
 
+    @property
     def params(self):
         return [self.W, self.b]
+
+    @params.setter
+    def params(self, params):
+        self.W, self.b = params
 
     def evaluate(self, ds):
         s = self.W @ ds.X + self.b
