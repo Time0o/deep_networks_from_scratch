@@ -214,6 +214,29 @@ class Network(ABC):
 
         plt.tight_layout()
 
+    def visualize_weights(self, axes=None):
+        if not hasattr(self, 'W'):
+            raise ValueError(
+                "weight visualization not implemented for this network type")
+
+        if axes is None:
+            fig, axes = plt.subplots(2, self.W.shape[0] // 2, figsize=(8, 4))
+            fig.subplots_adjust(hspace=0.1, wspace=0.1)
+
+        for w, ax in zip(self.W, axes.flatten()):
+            img = ((w - w.min()) / (w.max() - w.min()))
+
+            ax.imshow(img.reshape(3, 32, 32).transpose(1, 2, 0))
+
+            ax.tick_params(axis='both',
+                           which='both',
+                           bottom=False,
+                           top=False,
+                           left=False,
+                           right=False,
+                           labelbottom=False,
+                           labelleft=False)
+
 
 class SingleLayerFullyConnected(Network):
     PARAM_STD = 0.01
