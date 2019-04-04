@@ -12,8 +12,12 @@ TEST_BATCH_FMT = 'test_batch.mat'
 
 
 class Dataset:
-    def __init__(self, X, Y, y, labels=None):
-        self.X = X
+    def __init__(self, X, Y, y, labels=None, add_bias=False):
+        if add_bias:
+            self.X = np.vstack((X, np.ones(1, X.shape[1])))
+        else:
+            self.X = X
+
         self.Y = Y
         self.y = y
         self.labels = labels
