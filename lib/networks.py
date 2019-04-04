@@ -22,11 +22,15 @@ N_DEAD_EPOCHS_MAX_DEFAULT = 1
 
 
 class TrainHistory:
-    def __init__(self):
+    def __init__(self, store_learning_rate=False):
         self.train_cost = []
         self.train_accuracy = []
         self.val_cost = []
         self.val_accuracy = []
+
+        if store_learning_rate:
+            self.learning_rate = []
+
         self.final_network = None
         self.title = None
 
@@ -39,6 +43,9 @@ class TrainHistory:
         self.val_accuracy.append(network.accuracy(ds_val))
 
         self.length += 1
+
+    def add_learning_rate(self, eta):
+        self.learning_rate.append(eta)
 
     def add_final_network(self, network):
         self.final_network = network
@@ -436,7 +443,7 @@ class TwoLayerFullyConnected(Network):
               verbose=False):
 
         # keep track of loss and accuracy histories
-        history = TrainHistory()
+        history = TrainHistory(store_learning_rate=True)
 
         # update loop
         n_updates = 2 * eta_ss * n_cycles
@@ -472,6 +479,8 @@ class TwoLayerFullyConnected(Network):
                     eta = eta_min + t / eta_ss * (eta_max - eta_min)
                 else:
                     eta = eta_max - (t - eta_ss) / eta_ss * (eta_max - eta_min)
+
+                history.add_learning_rate(eta)
 
                 # update parameters
                 gradients = self.gradients(ds_train.batch(i_start, i_end))
