@@ -23,8 +23,10 @@ N_DEAD_EPOCHS_MAX_DEFAULT = 1
 
 class TrainHistory:
     def __init__(self, store_learning_rate=False):
+        self.train_loss = []
         self.train_cost = []
         self.train_accuracy = []
+        self.val_loss = []
         self.val_cost = []
         self.val_accuracy = []
 
@@ -37,9 +39,14 @@ class TrainHistory:
         self.length = 0
 
     def extend(self, network, ds_train, ds_val):
-        self.train_cost.append(network.cost(ds_train))
+        train_loss, train_cost = network.cost(ds_train, return_loss=True)
+        self.train_loss.append(train_loss)
+        self.train_cost.append(train_cost)
         self.train_accuracy.append(network.accuracy(ds_train))
-        self.val_cost.append(network.cost(ds_val))
+
+        val_loss, val_cost = network.cost(ds_val, return_loss=True)
+        self.val_loss.append(val_loss)
+        self.val_cost.append(val_cost)
         self.val_accuracy.append(network.accuracy(ds_val))
 
         self.length += 1
@@ -123,7 +130,7 @@ class Network(ABC):
         pass
 
     @abstractmethod
-    def cost(self, ds):
+    def cost(self, ds, return_loss=False):
         pass
 
     def gradients(self, ds, numerical=False, h=NUM_GRAD_DELTA):
@@ -276,7 +283,7 @@ class SingleLayerFullyConnected(Network):
 
             return P
 
-    def cost(self, ds):
+    def cost(self, ds, return_loss=False):
         if self._svm_loss:
             delta = self._svm_delta(ds)
 
@@ -289,7 +296,12 @@ class SingleLayerFullyConnected(Network):
             loss = -np.mean(np.log(py))
             reg = self.alpha * np.sum(self.W**2)
 
-        return loss + reg
+        cost = loss + reg
+
+        if return_loss:
+            return loss, cost
+        else:
+            return cost
 
     def train(self,
               ds_train,
@@ -442,14 +454,19 @@ class TwoLayerFullyConnected(Network):
         else:
             return P
 
-    def cost(self, ds):
+    def cost(self, ds, return_loss=False):
         P = self.evaluate(ds)
         py = P[ds.y, range(ds.n)]
 
         loss = -np.log(py).sum() / ds.n
         reg = self.alpha * np.sum([np.sum(self.W1**2) + np.sum(self.W2**2)])
 
-        return loss + reg
+        cost = loss + reg
+
+        if return_loss:
+            return loss, cost
+        else:
+            return cost
 
     def train(self,
               ds_train,
