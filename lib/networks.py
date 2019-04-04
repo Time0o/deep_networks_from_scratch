@@ -151,6 +151,151 @@ class Network(ABC):
 
         return correct / ds.n
 
+    def train(self,
+              ds_train,
+              ds_val,
+              eta=ETA_DEFAULT,
+              n_batch=N_BATCH_DEFAULT,
+              n_epochs=N_EPOCHS_DEFAULT,
+              n_dead_epochs_max=N_DEAD_EPOCHS_MAX_DEFAULT,
+              shuffle=False,
+              stop_early=False,
+              find_best_params=False,
+              verbose=False):
+
+        # keep track of loss and accuracy histories
+        history = TrainHistory()
+
+        # keep track of best parameters
+        if stop_early:
+            acc_best = 0
+            dead_epochs = 0
+
+        if find_best_params:
+            params_best = None
+
+        for ep in range(n_epochs):
+            # optionally shuffle training data
+            if shuffle:
+                ds_train = ds_train.shuffle()
+
+            n_batches = ds_train.n // n_batch
+
+            for i in range(n_batches):
+                # display progress
+                if verbose:
+                    fmt = f"epoch {ep + 1}/{n_epochs}, batch {i + 1}/{n_batches}"
+
+                    if ep < n_epochs - 1 or i < (ds_train.n // n_batch) - 1:
+                        print(fmt.ljust(80) + "\r", end='', flush=True)
+                    else:
+                        print(fmt.ljust(80), flush=True)
+
+                # form batch
+                i_start = i * n_batch
+                i_end = (i + 1) * n_batch
+
+                # update parameters
+                gradients = self.gradients(ds_train.batch(i_start, i_end))
+
+                self.update(gradients, eta)
+
+            # extend history
+            history.extend(self, ds_train, ds_val)
+
+            acc_last = history.val_accuracy[-1]
+
+            if stop_early:
+                if acc_last > acc_best:
+                    acc_best = acc_last
+                    dead_epochs = 0
+                else:
+                    dead_epochs += 1
+
+                    if dead_epochs >= n_dead_epochs_max:
+                        break
+
+            if find_best_params:
+                if acc_last > acc_best:
+                    params_best = [p.copy() for p in self.params]
+
+        if find_best_params:
+            self.params = params_best
+
+        history.add_final_network(self)
+
+        return history
+
+    def train_cyclic(self,
+                     ds_train,
+                     ds_val,
+                     eta_min=ETA_MIN_DEFAULT,
+                     eta_max=ETA_MAX_DEFAULT,
+                     eta_ss=ETA_SS_DEFAULT,
+                     n_batch=N_BATCH_DEFAULT,
+                     n_cycles=N_CYCLES_DEFAULT,
+                     history_per_cycle=HISTORY_PER_CYCLE_DEFAULT,
+                     shuffle=False,
+                     verbose=False):
+
+        # keep track of loss and accuracy histories
+        history = TrainHistory(store_learning_rate=True)
+
+        # update loop
+        n_updates = 2 * eta_ss * n_cycles
+        update = 0
+        done = False
+
+        while not done:
+            # optionally shuffle training data
+            if shuffle:
+                ds_train = ds_train.shuffle()
+
+            n_batches = ds_train.n // n_batch
+
+            for i in range(n_batches):
+                # display progress
+                if verbose:
+                    fmt = "update {}/{}"
+                    fmt = fmt.format(update + 1, n_updates)
+
+                    if update == n_updates - 1:
+                        print(fmt.ljust(80), flush=True)
+                    else:
+                        print(fmt.ljust(80) + "\r", end='', flush=True)
+
+                # form batch
+                i_start = i * n_batch
+                i_end = (i + 1) * n_batch
+
+                # determine current learning rate
+                t = update % (2 * eta_ss)
+
+                if t <= eta_ss:
+                    eta = eta_min + t / eta_ss * (eta_max - eta_min)
+                else:
+                    eta = eta_max - (t - eta_ss) / eta_ss * (eta_max - eta_min)
+
+                history.add_learning_rate(eta)
+
+                # update parameters
+                gradients = self.gradients(ds_train.batch(i_start, i_end))
+
+                self.update(gradients, eta)
+
+                # extend history
+                if update % (2 * eta_ss // history_per_cycle) == 0:
+                    history.extend(self, ds_train, ds_val)
+
+                update += 1
+                if update == n_updates:
+                    done = True
+                    break
+
+        history.add_final_network(self)
+
+        return history
+
     def visualize_performance(self, ds, ax=None, title=None):
         if ax is None:
             _, ax = plt.subplots(1, 1, figsize=(8, 8))
@@ -304,81 +449,6 @@ class SingleLayerFullyConnected(Network):
         else:
             return cost
 
-    def train(self,
-              ds_train,
-              ds_val,
-              eta=ETA_DEFAULT,
-              n_batch=N_BATCH_DEFAULT,
-              n_epochs=N_EPOCHS_DEFAULT,
-              n_dead_epochs_max=N_DEAD_EPOCHS_MAX_DEFAULT,
-              shuffle=False,
-              stop_early=False,
-              find_best_params=False,
-              verbose=False):
-
-        # keep track of loss and accuracy histories
-        history = TrainHistory()
-
-        # keep track of best parameters
-        if stop_early:
-            acc_best = 0
-            dead_epochs = 0
-
-        if find_best_params:
-            params_best = None
-
-        for ep in range(n_epochs):
-            # optionally shuffle training data
-            if shuffle:
-                ds_train = ds_train.shuffle()
-
-            n_batches = ds_train.n // n_batch
-
-            for i in range(n_batches):
-                # display progress
-                if verbose:
-                    fmt = f"epoch {ep + 1}/{n_epochs}, batch {i + 1}/{n_batches}"
-
-                    if ep < n_epochs - 1 or i < (ds_train.n // n_batch) - 1:
-                        print(fmt.ljust(80) + "\r", end='', flush=True)
-                    else:
-                        print(fmt.ljust(80), flush=True)
-
-                # form batch
-                i_start = i * n_batch
-                i_end = (i + 1) * n_batch
-
-                # update parameters
-                gradients = self.gradients(ds_train.batch(i_start, i_end))
-
-                self.update(gradients, eta)
-
-            # extend history
-            history.extend(self, ds_train, ds_val)
-
-            acc_last = history.val_accuracy[-1]
-
-            if stop_early:
-                if acc_last > acc_best:
-                    acc_best = acc_last
-                    dead_epochs = 0
-                else:
-                    dead_epochs += 1
-
-                    if dead_epochs >= n_dead_epochs_max:
-                        break
-
-            if find_best_params:
-                if acc_last > acc_best:
-                    params_best = [p.copy() for p in self.params]
-
-        if find_best_params:
-            self.params = params_best
-
-        history.add_final_network(self)
-
-        return history
-
     def _svm_delta(self, ds):
         s = self.evaluate(ds)
 
@@ -468,76 +538,6 @@ class TwoLayerFullyConnected(Network):
             return loss, cost
         else:
             return cost
-
-    def train(self,
-              ds_train,
-              ds_val,
-              eta_min=ETA_MIN_DEFAULT,
-              eta_max=ETA_MAX_DEFAULT,
-              eta_ss=ETA_SS_DEFAULT,
-              n_batch=N_BATCH_DEFAULT,
-              n_cycles=N_CYCLES_DEFAULT,
-              history_per_cycle=HISTORY_PER_CYCLE_DEFAULT,
-              shuffle=False,
-              verbose=False):
-
-        # keep track of loss and accuracy histories
-        history = TrainHistory(store_learning_rate=True)
-
-        # update loop
-        n_updates = 2 * eta_ss * n_cycles
-        update = 0
-        done = False
-
-        while not done:
-            # optionally shuffle training data
-            if shuffle:
-                ds_train = ds_train.shuffle()
-
-            n_batches = ds_train.n // n_batch
-
-            for i in range(n_batches):
-                # display progress
-                if verbose:
-                    fmt = "update {}/{}"
-                    fmt = fmt.format(update + 1, n_updates)
-
-                    if update == n_updates - 1:
-                        print(fmt.ljust(80), flush=True)
-                    else:
-                        print(fmt.ljust(80) + "\r", end='', flush=True)
-
-                # form batch
-                i_start = i * n_batch
-                i_end = (i + 1) * n_batch
-
-                # determine current learning rate
-                t = update % (2 * eta_ss)
-
-                if t <= eta_ss:
-                    eta = eta_min + t / eta_ss * (eta_max - eta_min)
-                else:
-                    eta = eta_max - (t - eta_ss) / eta_ss * (eta_max - eta_min)
-
-                history.add_learning_rate(eta)
-
-                # update parameters
-                gradients = self.gradients(ds_train.batch(i_start, i_end))
-
-                self.update(gradients, eta)
-
-                # extend history
-                if update % (2 * eta_ss // history_per_cycle) == 0:
-                    history.extend(self, ds_train, ds_val)
-
-                update += 1
-                if update == n_updates:
-                    done = True
-                    break
-
-        history.add_final_network(self)
-
-        return history
 
     def _gradients(self, ds):
         H, P = self.evaluate(ds, return_H=True)
