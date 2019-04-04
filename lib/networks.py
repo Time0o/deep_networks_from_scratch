@@ -103,6 +103,11 @@ class TrainHistory:
 class Network(ABC):
     PARAM_DTYPE = np.float64
 
+    @abstractmethod
+    def __init__(self, random_seed):
+        if random_seed is not None:
+            np.random.seed(random_seed)
+
     @property
     @abstractmethod
     def params(self):
@@ -216,7 +221,15 @@ class Network(ABC):
 
 
 class SingleLayerFullyConnected(Network):
-    def __init__(self, input_size, num_classes, alpha=0, loss='cross_entropy'):
+    def __init__(self,
+                 input_size,
+                 num_classes,
+                 alpha=0,
+                 loss='cross_entropy',
+                 random_seed=None):
+
+        super().__init__(random_seed)
+
         if loss not in ['cross_entropy', 'svm']:
             raise ValueError("'loss' must be either 'cross_entropy' or 'svm'")
 
@@ -382,7 +395,15 @@ class SingleLayerFullyConnected(Network):
 
 
 class TwoLayerFullyConnected(Network):
-    def __init__(self, input_size, hidden_nodes, num_classes, alpha=0):
+    def __init__(self,
+                 input_size,
+                 hidden_nodes,
+                 num_classes,
+                 alpha=0,
+                 random_seed=None):
+
+        super().__init__(random_seed)
+
         self.input_size = input_size
         self.hidden_nodes = hidden_nodes
         self.num_classes = num_classes
