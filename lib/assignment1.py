@@ -12,7 +12,7 @@ def _axes(rows, cols, figsize=None):
     return axes
 
 
-def train_networks(ds_train, ds_val, hyperparams, pickle_dir):
+def train_networks(ds_train, ds_val, hyperparams, pickle_dir, postfix=None):
     loss = hyperparams.get('loss', 'cross_entropy')
 
     for alpha, eta in zip(hyperparams['alpha'], hyperparams['eta']):
@@ -24,15 +24,18 @@ def train_networks(ds_train, ds_val, hyperparams, pickle_dir):
     	                        n_epochs=hyperparams['epochs'],
     	                        verbose=True)
 
-        history.save(pickle_dir, [('alpha', alpha), ('eta', eta)])
+        history.save(pickle_dir,
+                     [('alpha', alpha), ('eta', eta)],
+                     postfix=postfix)
 
 
-def load_histories(hyperparams, pickle_dir):
+def load_histories(hyperparams, pickle_dir, postfix=None):
     histories = []
 
     for alpha, eta in zip(hyperparams['alpha'], hyperparams['eta']):
-        history = TrainHistory.load(
-            pickle_dir, [('alpha', alpha), ('eta', eta)])
+        history = TrainHistory.load(pickle_dir,
+                                    [('alpha', alpha), ('eta', eta)],
+                                    postfix=postfix)
 
         history.add_title(r"$\lambda = {}$, $\eta = {}$".format(alpha, eta))
 
