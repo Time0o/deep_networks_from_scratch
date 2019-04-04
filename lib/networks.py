@@ -554,3 +554,65 @@ class TwoLayerFullyConnected(Network):
         grad_b1 = 1 / ds.n * np.sum(G, axis=1, keepdims=True)
 
         return [grad_W1, grad_W2, grad_b1, grad_b2]
+
+
+class MultiLayerFullyConnected(Network):
+    def __init__(self,
+                 input_size,
+                 hidden_nodes,
+                 num_classes,
+                 alpha=0,
+                 random_seed=None):
+
+        super().__init__(random_seed)
+
+        self.input_size = input_size
+        self.hidden_nodes = hidden_nodes
+        self.num_classes = num_classes
+
+        self.alpha = alpha
+
+        self.Ws = []
+        self.bs = []
+
+        for d1, d2 in zip([input_size] + hidden_nodes,
+                          hidden_nodes + [num_classes]):
+
+            self.Ws.append(self._rand_param((d2, d1)))
+            self.bs.append(self._rand_param((d2, 1)))
+
+    @property
+    def params(self):
+        return self.Ws + self.bs
+
+    @property
+    def param_names(self):
+        return zip(*[
+            (f'W{i+1}', f'b{i+1}') for i in range(len(self.hidden_nodes))
+        ])
+
+    def evaluate(self, ds, return_activations=False):
+        activations = []
+
+        X = ds.X
+        for i in range(len(self.hidden_nodes)):
+            X = self.Ws[i] @ X + self.bs[i]
+            X[X < 0] = 0
+
+            activations.append(X)
+
+        S = self.Ws[-1] @ X + self.bs[-1]
+
+        P = np.exp(S)
+        P /= P.sum(axis=0)
+
+        if return_activations:
+            return activations, P
+        else:
+            return P
+
+    def cost(self, ds, return_loss=False):
+        raise ValueError('TODO')
+
+    def _gradients(self, ds):
+        raise ValueError('TODO')
