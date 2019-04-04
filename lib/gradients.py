@@ -17,17 +17,12 @@ def compare_gradients(network_constructor, ds, params):
         network = network_constructor(dims, ds.num_classes, alpha=alpha)
         ds_sub = ds.subsample(n=n, dims=dims)
 
-        grad_W_num, grad_b_num = network.gradients(ds_sub, numerical=True)
-        grad_W, grad_b = network.gradients(ds_sub)
+        grads_num = network.gradients(ds_sub, numerical=True)
+        grads = network.gradients(ds_sub)
 
         print(f"{dims} dimensions, {n} sample(s), lambda = {alpha}:\n")
 
-        print("W:")
-        gradient_error(grad_W, grad_W_num)
-
-        print()
-
-        print("b:")
-        gradient_error(grad_b, grad_b_num)
-
-        print()
+        for grad_num, grad, param in zip(grads_num, grads, network.param_names):
+            print(param + ':')
+            gradient_error(grad, grad_num)
+            print()
