@@ -3,3 +3,9 @@
 
 data/*
 !data/.gitkeep
+
+figures/*
+!figures/.gitkeep
+
+pickle/*
+!pickle/.gitkeep
