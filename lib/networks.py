@@ -90,6 +90,11 @@ class Network(ABC):
     def params(self):
         pass
 
+    @property
+    @abstractmethod
+    def param_names(self):
+        pass
+
     @abstractmethod
     def evaluate(self, ds):
         pass
@@ -242,71 +247,134 @@ class SingleLayerFullyConnected(Network):
     PARAM_STD = 0.01
     PARAM_DTYPE = np.float64
 
-    def __init__(self, input_size, num_classes, alpha=0):
+    def __init__(self, input_size, num_classes, alpha=0, loss='cross_entropy'):
+        if loss not in ['cross_entropy', 'svm']:
+            raise ValueError("'loss' must be either 'cross_entropy' or 'svm'")
+
         self.input_size = input_size
         self.num_classes = num_classes
 
-        self.W = self._rand_param((num_classes, input_size))
-        self.b = self._rand_param((num_classes, 1))
         self.alpha = alpha
+        self._svm_loss = loss == 'svm'
 
-    def _rand_param(self, shape):
-        return self.PARAM_STD * np.random.randn(*shape).astype(self.PARAM_DTYPE)
+        self.W = self._rand_param((num_classes, input_size))
+
+        if not self._svm_loss:
+            self.b = self._rand_param((num_classes, 1))
+
+    @property
+    def param_names(self):
+        if self._svm_loss:
+            return ['W']
+        else:
+            return ['W', 'b']
 
     @property
     def params(self):
-        return [self.W, self.b]
+        if self._svm_loss:
+            return [self.W]
+        else:
+            return [self.W, self.b]
 
     @params.setter
     def params(self, params):
-        self.W, self.b = params
+        if self._svm_loss:
+            self.W = params[0]
+        else:
+            self.W, self.b = params
 
     def evaluate(self, ds):
-        s = self.W @ ds.X + self.b
+        if self._svm_loss:
+            return self.W @ ds.X
+        else:
+            s = self.W @ ds.X + self.b
 
-        P = np.exp(s)
-        P /= P.sum(axis=0)
+            P = np.exp(s)
+            P /= P.sum(axis=0)
 
-        return P
+            return P
 
     def cost(self, ds):
-        P = self.evaluate(ds)
-        py = P[ds.y, range(ds.n)]
+        if self._svm_loss:
+            delta = self._svm_delta(ds)
 
-        loss = -np.mean(np.log(py))
-        reg = self.alpha * np.sum(self.W**2)
+            loss = delta.sum() / ds.n
+            reg = self.alpha * np.sum(self.W**2)
+        else:
+            P = self.evaluate(ds)
+            py = P[ds.y, range(ds.n)]
+
+            loss = -np.mean(np.log(py))
+            reg = self.alpha * np.sum(self.W**2)
 
         return loss + reg
 
     def gradients(self, ds, numerical=False, h=NUM_GRAD_DELTA):
-        if numerical:
-            grad_W = np.zeros_like(self.W)
-            grad_b = np.zeros((self.num_classes, 1), dtype=self.W.dtype)
+        if self._svm_loss:
+            if numerical:
+                grad_W = self._grad_W(ds, h)
+            else:
+                delta = self._svm_delta(ds)
 
-            c1 = self.cost(ds)
+                ind = delta
+                ind[delta > 0] = 1;
+                ind[np.argmax(ds.Y, axis=0),
+                    np.arange(ds.n)] = -np.sum(ind, axis=0)
 
-            for i in range(self.num_classes):
-                self.b[i] += h
-                c2 = self.cost(ds)
-                grad_b[i] = (c2 - c1) / h
-                self.b[i] -= h
+                grad_W = ind @ ds.X.T / ds.n + 2 * self.alpha * self.W
 
-            for i in range(self.num_classes):
-                for j in range(self.input_size):
-                    self.W[i, j] += h
-                    c2 = self.cost(ds)
-                    grad_W[i, j] = (c2 - c1) / h
-                    self.W[i, j] -= h
+            return [grad_W]
         else:
-            P = self.evaluate(ds)
+            if numerical:
+                grad_W = self._grad_W(ds, h)
+                grad_b = self._grad_b(ds, h)
+            else:
+                P = self.evaluate(ds)
 
-            G = -(ds.Y - P)
+                G = -(ds.Y - P)
 
-            grad_W = 1 / ds.n * G @ ds.X.T + 2 * self.alpha * self.W
-            grad_b = 1 / ds.n * G.sum(axis=1, keepdims=True)
+                grad_W = 1 / ds.n * G @ ds.X.T + 2 * self.alpha * self.W
+                grad_b = 1 / ds.n * G.sum(axis=1, keepdims=True)
 
-        return [grad_W, grad_b]
+            return [grad_W, grad_b]
 
     def update(self, gradients, eta):
         self.W -= eta * gradients[0]
-        self.b -= eta * gradients[1]
+
+        if not self._svm_loss:
+            self.b -= eta * gradients[1]
+
+    def _rand_param(self, shape):
+        return self.PARAM_STD * np.random.randn(*shape).astype(self.PARAM_DTYPE)
+
+    def _svm_delta(self, ds):
+        s = self.evaluate(ds)
+
+        return np.maximum(0, (s - np.sum(s * ds.Y, axis=0) + 1) * (1 - ds.Y))
+
+    def _grad_W(self, ds, h):
+        grad_W = np.zeros_like(self.W)
+
+        c1 = self.cost(ds)
+
+        for i in range(self.num_classes):
+            for j in range(self.input_size):
+                self.W[i, j] += h
+                c2 = self.cost(ds)
+                grad_W[i, j] = (c2 - c1) / h
+                self.W[i, j] -= h
+
+        return grad_W
+
+    def _grad_b(self, ds, h):
+        grad_b = np.zeros_like(self.b)
+
+        c1 = self.cost(ds)
+
+        for i in range(self.num_classes):
+            self.b[i] += h
+            c2 = self.cost(ds)
+            grad_b[i] = (c2 - c1) / h
+            self.b[i] -= h
+
+        return grad_b
