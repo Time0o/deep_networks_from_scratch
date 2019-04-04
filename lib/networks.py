@@ -611,7 +611,35 @@ class MultiLayerFullyConnected(Network):
             return P
 
     def cost(self, ds, return_loss=False):
-        raise ValueError('TODO')
+        P = self.evaluate(ds)
+        py = P[ds.y, range(ds.n)]
+
+        loss = -np.log(py).sum() / ds.n
+        reg = self.alpha * np.sum([np.sum(W**2) for W in self.Ws])
+
+        cost = loss + reg
+
+        if return_loss:
+            return loss, cost
+        else:
+            return cost
 
     def _gradients(self, ds):
-        raise ValueError('TODO')
+        activations, P = self.evaluate(ds, return_activations=True)
+
+        G = -(ds.Y - P)
+
+        grads_W = []
+        grads_b = []
+
+        for i in range(len(self.hidden_nodes), 0, -1):
+            grads_W.append(1 / ds.n * G @ activations[i - 1].T)
+            grads_b.append(1 / ds.n * G.sum(axis=1, keepdims=True))
+
+            G = self.Ws[i].T @ G
+            G *= activations[i - 1] > 0
+
+        grads_W.append(1 / ds.n * G @ ds.X.T)
+        grads_b.append(1 / ds.n * G.sum(axis=1, keepdims=True))
+
+        return list(reversed(grads_W)) + list(reversed(grads_b))
