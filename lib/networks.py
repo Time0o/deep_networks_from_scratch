@@ -11,8 +11,13 @@ from sklearn.metrics import confusion_matrix
 
 NUM_GRAD_DELTA = 1e-6
 ETA_DEFAULT = 0.01
+ETA_MIN_DEFAULT = 1e-5
+ETA_MAX_DEFAULT = 1e-1
+ETA_SS_DEFAULT = 500
 N_BATCH_DEFAULT = 100
 N_EPOCHS_DEFAULT = 1
+N_CYCLES_DEFAULT = 1
+HISTORY_PER_CYCLE_DEFAULT = 10
 N_DEAD_EPOCHS_MAX_DEFAULT = 1
 
 
@@ -89,6 +94,8 @@ class TrainHistory:
 
 
 class Network(ABC):
+    PARAM_DTYPE = np.float64
+
     @property
     @abstractmethod
     def params(self):
@@ -107,13 +114,15 @@ class Network(ABC):
     def cost(self, ds):
         pass
 
-    @abstractmethod
     def gradients(self, ds, numerical=False, h=NUM_GRAD_DELTA):
-        pass
+        if numerical:
+            return self._gradients_numerical(ds, h)
+        else:
+            return self._gradients(ds)
 
-    @abstractmethod
     def update(self, gradients, eta):
-        pass
+        for i, param in enumerate(self.params):
+            param -= eta * gradients[i]
 
     def accuracy(self, ds):
         P = self.evaluate(ds)
@@ -121,80 +130,6 @@ class Network(ABC):
         correct = np.count_nonzero(ds.y == P.argmax(axis=0))
 
         return correct / ds.n
-
-    def train(self,
-              ds_train,
-              ds_val,
-              eta=ETA_DEFAULT,
-              n_batch=N_BATCH_DEFAULT,
-              n_epochs=N_EPOCHS_DEFAULT,
-              n_dead_epochs_max=N_DEAD_EPOCHS_MAX_DEFAULT,
-              shuffle=False,
-              stop_early=False,
-              find_best_params=False,
-              verbose=False):
-
-        # keep track of loss and accuracy histories
-        history = TrainHistory()
-
-        # keep track of best parameters
-        if stop_early:
-            acc_best = 0
-            dead_epochs = 0
-
-        if find_best_params:
-            params_best = None
-
-        for ep in range(n_epochs):
-            # optionally shuffle training data
-            if shuffle:
-                ds_train = ds_train.shuffle()
-
-            n_batches = ds_train.n // n_batch
-
-            for i in range(n_batches):
-                # display progress
-                if verbose:
-                    fmt = f"epoch {ep + 1}/{n_epochs}, batch {i + 1}/{n_batches}"
-
-                    if ep < n_epochs - 1 or i < (ds_train.n // n_batch) - 1:
-                        print(fmt.ljust(80) + "\r", end='', flush=True)
-                    else:
-                        print(fmt.ljust(80), flush=True)
-
-                # form batch
-                i_start = i * n_batch
-                i_end = (i + 1) * n_batch
-
-                # update parameters
-                gradients = self.gradients(ds_train.batch(i_start, i_end))
-                self.update(gradients, eta)
-
-            # extend history
-            history.extend(self, ds_train, ds_val)
-
-            acc_last = history.val_accuracy[-1]
-
-            if stop_early:
-                if acc_last > acc_best:
-                    acc_best = acc_last
-                    dead_epochs = 0
-                else:
-                    dead_epochs += 1
-
-                    if dead_epochs >= n_dead_epochs_max:
-                        break
-
-            if find_best_params:
-                if acc_last > acc_best:
-                    params_best = [p.copy() for p in self.params]
-
-        if find_best_params:
-            self.params = params_best
-
-        history.add_final_network(self)
-
-        return history
 
     def visualize_performance(self, ds, ax=None, title=None):
         if ax is None:
@@ -246,11 +181,34 @@ class Network(ABC):
                            labelbottom=False,
                            labelleft=False)
 
+    def _rand_param(self, shape, std=1):
+        return std * np.random.randn(*shape).astype(self.PARAM_DTYPE)
+
+    def _gradients_numerical(self, ds, h):
+        grads = []
+
+        for param in self.params:
+            grad = np.zeros_like(param)
+
+            c1 = self.cost(ds)
+
+            for i in range(grad.shape[0]):
+                for j in range(grad.shape[1]):
+                    param[i, j] += h
+                    c2 = self.cost(ds)
+                    grad[i, j] = (c2 - c1) / h
+                    param[i, j] -= h
+
+            grads.append(grad)
+
+        return grads
+
+    @abstractmethod
+    def _gradients(self, ds):
+        pass
+
 
 class SingleLayerFullyConnected(Network):
-    PARAM_STD = 0.01
-    PARAM_DTYPE = np.float64
-
     def __init__(self, input_size, num_classes, alpha=0, loss='cross_entropy'):
         if loss not in ['cross_entropy', 'svm']:
             raise ValueError("'loss' must be either 'cross_entropy' or 'svm'")
@@ -261,10 +219,10 @@ class SingleLayerFullyConnected(Network):
         self.alpha = alpha
         self._svm_loss = loss == 'svm'
 
-        self.W = self._rand_param((num_classes, input_size))
+        self.W = self._rand_param((num_classes, input_size), std=0.01)
 
         if not self._svm_loss:
-            self.b = self._rand_param((num_classes, 1))
+            self.b = self._rand_param((num_classes, 1), std=0.01)
 
     @property
     def param_names(self):
@@ -313,72 +271,238 @@ class SingleLayerFullyConnected(Network):
 
         return loss + reg
 
-    def gradients(self, ds, numerical=False, h=NUM_GRAD_DELTA):
-        if self._svm_loss:
-            if numerical:
-                grad_W = self._grad_W(ds, h)
-            else:
-                delta = self._svm_delta(ds)
+    def train(self,
+              ds_train,
+              ds_val,
+              eta=ETA_DEFAULT,
+              n_batch=N_BATCH_DEFAULT,
+              n_epochs=N_EPOCHS_DEFAULT,
+              n_dead_epochs_max=N_DEAD_EPOCHS_MAX_DEFAULT,
+              shuffle=False,
+              stop_early=False,
+              find_best_params=False,
+              verbose=False):
 
-                ind = delta
-                ind[delta > 0] = 1;
-                ind[np.argmax(ds.Y, axis=0),
-                    np.arange(ds.n)] = -np.sum(ind, axis=0)
+        # keep track of loss and accuracy histories
+        history = TrainHistory()
 
-                grad_W = ind @ ds.X.T / ds.n + 2 * self.alpha * self.W
+        # keep track of best parameters
+        if stop_early:
+            acc_best = 0
+            dead_epochs = 0
 
-            return [grad_W]
-        else:
-            if numerical:
-                grad_W = self._grad_W(ds, h)
-                grad_b = self._grad_b(ds, h)
-            else:
-                P = self.evaluate(ds)
+        if find_best_params:
+            params_best = None
 
-                G = -(ds.Y - P)
+        for ep in range(n_epochs):
+            # optionally shuffle training data
+            if shuffle:
+                ds_train = ds_train.shuffle()
 
-                grad_W = 1 / ds.n * G @ ds.X.T + 2 * self.alpha * self.W
-                grad_b = 1 / ds.n * G.sum(axis=1, keepdims=True)
+            n_batches = ds_train.n // n_batch
 
-            return [grad_W, grad_b]
+            for i in range(n_batches):
+                # display progress
+                if verbose:
+                    fmt = f"epoch {ep + 1}/{n_epochs}, batch {i + 1}/{n_batches}"
 
-    def update(self, gradients, eta):
-        self.W -= eta * gradients[0]
+                    if ep < n_epochs - 1 or i < (ds_train.n // n_batch) - 1:
+                        print(fmt.ljust(80) + "\r", end='', flush=True)
+                    else:
+                        print(fmt.ljust(80), flush=True)
 
-        if not self._svm_loss:
-            self.b -= eta * gradients[1]
+                # form batch
+                i_start = i * n_batch
+                i_end = (i + 1) * n_batch
 
-    def _rand_param(self, shape):
-        return self.PARAM_STD * np.random.randn(*shape).astype(self.PARAM_DTYPE)
+                # update parameters
+                gradients = self.gradients(ds_train.batch(i_start, i_end))
+
+                self.update(gradients, eta)
+
+            # extend history
+            history.extend(self, ds_train, ds_val)
+
+            acc_last = history.val_accuracy[-1]
+
+            if stop_early:
+                if acc_last > acc_best:
+                    acc_best = acc_last
+                    dead_epochs = 0
+                else:
+                    dead_epochs += 1
+
+                    if dead_epochs >= n_dead_epochs_max:
+                        break
+
+            if find_best_params:
+                if acc_last > acc_best:
+                    params_best = [p.copy() for p in self.params]
+
+        if find_best_params:
+            self.params = params_best
+
+        history.add_final_network(self)
+
+        return history
 
     def _svm_delta(self, ds):
         s = self.evaluate(ds)
 
         return np.maximum(0, (s - np.sum(s * ds.Y, axis=0) + 1) * (1 - ds.Y))
 
-    def _grad_W(self, ds, h):
-        grad_W = np.zeros_like(self.W)
+    def _gradients(self, ds):
+        if self._svm_loss:
+            delta = self._svm_delta(ds)
 
-        c1 = self.cost(ds)
+            ind = delta
+            ind[delta > 0] = 1;
+            ind[np.argmax(ds.Y, axis=0),
+                np.arange(ds.n)] = -np.sum(ind, axis=0)
 
-        for i in range(self.num_classes):
-            for j in range(self.input_size):
-                self.W[i, j] += h
-                c2 = self.cost(ds)
-                grad_W[i, j] = (c2 - c1) / h
-                self.W[i, j] -= h
+            grad_W = ind @ ds.X.T / ds.n + 2 * self.alpha * self.W
 
-        return grad_W
+            return [grad_W]
+        else:
+            P = self.evaluate(ds)
 
-    def _grad_b(self, ds, h):
-        grad_b = np.zeros_like(self.b)
+            G = -(ds.Y - P)
 
-        c1 = self.cost(ds)
+            grad_W = 1 / ds.n * G @ ds.X.T + 2 * self.alpha * self.W
+            grad_b = 1 / ds.n * G.sum(axis=1, keepdims=True)
 
-        for i in range(self.num_classes):
-            self.b[i] += h
-            c2 = self.cost(ds)
-            grad_b[i] = (c2 - c1) / h
-            self.b[i] -= h
+            return [grad_W, grad_b]
 
-        return grad_b
+
+class TwoLayerFullyConnected(Network):
+    def __init__(self, input_size, hidden_nodes, num_classes, alpha=0):
+        self.input_size = input_size
+        self.hidden_nodes = hidden_nodes
+        self.num_classes = num_classes
+
+        self.alpha = alpha
+
+        self.W1 = self._rand_param((hidden_nodes, input_size),
+                                   std=(1 / np.sqrt(input_size)))
+
+        self.W2 = self._rand_param((num_classes, hidden_nodes),
+                                   std=(1 / np.sqrt(hidden_nodes)))
+
+        self.b1 = np.zeros((hidden_nodes, 1), dtype=self.PARAM_DTYPE)
+
+        self.b2 = np.zeros((num_classes, 1), dtype=self.PARAM_DTYPE)
+
+    @property
+    def params(self):
+        return [self.W1, self.W2, self.b1, self.b2]
+
+    @property
+    def param_names(self):
+        return ['W1', 'W2', 'b1', 'b2']
+
+    def evaluate(self, ds, return_H=False):
+        H = self.W1 @ ds.X + self.b1
+        H[H < 0] = 0
+
+        S = self.W2 @ H + self.b2
+
+        P = np.exp(S)
+        P /= P.sum(axis=0)
+
+        if return_H:
+            return H, P
+        else:
+            return P
+
+    def cost(self, ds):
+        P = self.evaluate(ds)
+        py = P[ds.y, range(ds.n)]
+
+        loss = -np.log(py).sum() / ds.n
+        reg = self.alpha * np.sum([np.sum(self.W1**2) + np.sum(self.W2**2)])
+
+        return loss + reg
+
+    def train(self,
+              ds_train,
+              ds_val,
+              eta_min=ETA_MIN_DEFAULT,
+              eta_max=ETA_MAX_DEFAULT,
+              eta_ss=ETA_SS_DEFAULT,
+              n_batch=N_BATCH_DEFAULT,
+              n_cycles=N_CYCLES_DEFAULT,
+              history_per_cycle=HISTORY_PER_CYCLE_DEFAULT,
+              shuffle=False,
+              verbose=False):
+
+        # keep track of loss and accuracy histories
+        history = TrainHistory()
+
+        # update loop
+        n_updates = 2 * eta_ss * n_cycles
+        update = 0
+        done = False
+
+        while not done:
+            # optionally shuffle training data
+            if shuffle:
+                ds_train = ds_train.shuffle()
+
+            n_batches = ds_train.n // n_batch
+
+            for i in range(n_batches):
+                # display progress
+                if verbose:
+                    fmt = "update {}/{}"
+                    fmt = fmt.format(update + 1, n_updates)
+
+                    if update == n_updates - 1:
+                        print(fmt.ljust(80), flush=True)
+                    else:
+                        print(fmt.ljust(80) + "\r", end='', flush=True)
+
+                # form batch
+                i_start = i * n_batch
+                i_end = (i + 1) * n_batch
+
+                # determine current learning rate
+                t = update % (2 * eta_ss)
+
+                if t <= eta_ss:
+                    eta = eta_min + t / eta_ss * (eta_max - eta_min)
+                else:
+                    eta = eta_max - (t - eta_ss) / eta_ss * (eta_max - eta_min)
+
+                # update parameters
+                gradients = self.gradients(ds_train.batch(i_start, i_end))
+
+                self.update(gradients, eta)
+
+                # extend history
+                if update % (2 * eta_ss // history_per_cycle) == 0:
+                    history.extend(self, ds_train, ds_val)
+
+                update += 1
+                if update == n_updates:
+                    done = True
+                    break
+
+        history.add_final_network(self)
+
+        return history
+
+    def _gradients(self, ds):
+        H, P = self.evaluate(ds, return_H=True)
+
+        G = -(ds.Y - P)
+
+        grad_W2 = 1 / ds.n * G @ H.T + 2 * self.alpha * self.W2
+        grad_b2 = 1 / ds.n * np.sum(G, axis=1, keepdims=True)
+
+        G = self.W2.T @ G
+        G *= H > 0
+
+        grad_W1 = 1 / ds.n * G @ ds.X.T + 2 * self.alpha * self.W1
+        grad_b1 = 1 / ds.n * np.sum(G, axis=1, keepdims=True)
+
+        return [grad_W1, grad_W2, grad_b1, grad_b2]
