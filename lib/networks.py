@@ -109,6 +109,7 @@ class TrainHistory:
 
 class Network(ABC):
     PARAM_DTYPE = np.float64
+    PARAM_STD_DEFAULT = 0.01
 
     @abstractmethod
     def __init__(self, random_seed):
@@ -200,7 +201,7 @@ class Network(ABC):
                            labelbottom=False,
                            labelleft=False)
 
-    def _rand_param(self, shape, std=1):
+    def _rand_param(self, shape, std=PARAM_STD_DEFAULT):
         return std * np.random.randn(*shape).astype(self.PARAM_DTYPE)
 
     def _gradients_numerical(self, ds, h):
@@ -246,10 +247,10 @@ class SingleLayerFullyConnected(Network):
         self.alpha = alpha
         self._svm_loss = loss == 'svm'
 
-        self.W = self._rand_param((num_classes, input_size), std=0.01)
+        self.W = self._rand_param((num_classes, input_size))
 
         if not self._svm_loss:
-            self.b = self._rand_param((num_classes, 1), std=0.01)
+            self.b = self._rand_param((num_classes, 1))
 
     @property
     def param_names(self):
