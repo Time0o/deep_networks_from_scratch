@@ -23,6 +23,7 @@ class TrainHistory:
         self.val_cost = []
         self.val_accuracy = []
         self.final_network = None
+        self.title = None
 
         self.length = 0
 
@@ -37,7 +38,10 @@ class TrainHistory:
     def add_final_network(self, network):
         self.final_network = network
 
-    def visualize(self, axes=None, title=None):
+    def add_title(self, title):
+        self.title = title
+
+    def visualize(self, axes=None):
         if axes is None:
             _, axes = plt.subplots(1, 2, figsize=(10, 5))
 
@@ -55,8 +59,8 @@ class TrainHistory:
         axes[1].set_ylabel("Accuracy")
 
         for ax in axes:
-            if title is not None:
-                ax.set_title(title)
+            if self.title is not None:
+                ax.set_title(self.title)
 
             ax.legend()
             ax.grid()
