@@ -587,9 +587,8 @@ class MultiLayerFullyConnected(Network):
 
     @property
     def param_names(self):
-        return zip(*[
-            (f'W{i+1}', f'b{i+1}') for i in range(len(self.hidden_nodes))
-        ])
+        return [f'W{i+1}' for i in range(len(self.Ws))] + \
+               [f'b{i+1}' for i in range(len(self.bs))]
 
     def evaluate(self, ds, return_activations=False):
         activations = []
