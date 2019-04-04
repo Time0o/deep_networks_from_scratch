@@ -14,7 +14,10 @@ def gradient_error(grad, grad_num):
 
 def compare_gradients(network_constructor, ds, params):
     for n, dims, alpha in params:
-        network = network_constructor(dims, ds.num_classes, alpha=alpha)
+        network = network_constructor(input_size=dims,
+                                      num_classes=ds.num_classes,
+                                      alpha=alpha)
+
         ds_sub = ds.subsample(n=n, dims=dims)
 
         grads_num = network.gradients(ds_sub, numerical=True)
