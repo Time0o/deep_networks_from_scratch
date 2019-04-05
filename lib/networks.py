@@ -496,12 +496,12 @@ class TwoLayerFullyConnected(Network):
         self.W1 = self._rand_param((hidden_nodes, input_size),
                                    std=(1 / np.sqrt(input_size)))
 
-        self.b1 = np.zeros((hidden_nodes, 1), dtype=self.PARAM_DTYPE)
+        self.b1 = np.zeros((hidden_nodes, 1))
 
         self.W2 = self._rand_param((num_classes, hidden_nodes),
                                    std=(1 / np.sqrt(hidden_nodes)))
 
-        self.b2 = np.zeros((num_classes, 1), dtype=self.PARAM_DTYPE)
+        self.b2 = np.zeros((num_classes, 1))
 
     @property
     def params(self):
