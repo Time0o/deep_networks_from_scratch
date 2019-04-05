@@ -579,7 +579,7 @@ class MultiLayerFullyConnected(Network):
                           hidden_nodes + [num_classes]):
 
             self.Ws.append(self._rand_param((d2, d1), std=(1 / np.sqrt(d1))))
-            self.bs.append(self._rand_param((d2, 1)))
+            self.bs.append(np.zeros((d2, 1)))
 
     @property
     def params(self):
