@@ -634,14 +634,14 @@ class MultiLayerFullyConnected(Network):
 
         for i in range(len(self.hidden_nodes), 0, -1):
             grads_W.append(1 / ds.n * G @ activations[i - 1].T + \
-                           self.alpha * self.Ws[i])
+                           2 * self.alpha * self.Ws[i])
             grads_b.append(1 / ds.n * G.sum(axis=1, keepdims=True))
 
             G = self.Ws[i].T @ G
             G *= activations[i - 1] > 0
 
         grads_W.append(1 / ds.n * G @ ds.X.T + \
-                       self.alpha * self.Ws[0])
+                       2 * self.alpha * self.Ws[0])
         grads_b.append(1 / ds.n * G.sum(axis=1, keepdims=True))
 
         return list(reversed(grads_W)) + list(reversed(grads_b))
