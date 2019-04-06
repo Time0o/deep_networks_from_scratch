@@ -346,8 +346,17 @@ class Network(ABC):
                            labelbottom=False,
                            labelleft=False)
 
-    def _rand_param(self, shape, std=PARAM_STD_DEFAULT):
-        return std * np.random.randn(*shape).astype(self.PARAM_DTYPE)
+    def _rand_param(self, shape, init='standard'):
+        if init == 'standard':
+            f = self.PARAM_STD_DEFAULT
+        elif init == 'xavier':
+            f = 1 / np.sqrt(shape[1])
+        elif init == 'he':
+            f = np.sqrt(2 / shape[1])
+        else:
+            raise ValueError("invalid parameter initializer")
+
+        return f * np.random.randn(*shape).astype(self.PARAM_DTYPE)
 
     def _gradients_numerical(self, ds, h):
         grads = []
@@ -483,9 +492,13 @@ class MultiLayerFullyConnected(Network):
                  hidden_nodes,
                  num_classes,
                  alpha=0,
+                 weight_init='he',
                  random_seed=None):
 
         super().__init__(random_seed)
+
+        if weight_init not in ['standard', 'xavier', 'he']:
+            raise ValueError("invalid weight initializer")
 
         self.input_size = input_size
         self.hidden_nodes = hidden_nodes
@@ -499,7 +512,7 @@ class MultiLayerFullyConnected(Network):
         for d1, d2 in zip([input_size] + hidden_nodes,
                           hidden_nodes + [num_classes]):
 
-            self.Ws.append(self._rand_param((d2, d1), std=(1 / np.sqrt(d1))))
+            self.Ws.append(self._rand_param((d2, d1), init=weight_init))
             self.bs.append(np.zeros((d2, 1)))
 
     @property
