@@ -760,7 +760,7 @@ class MultiLayerFullyConnected(Network):
         return G1 - G1.sum(axis=1, keepdims=True) / n - (D * c) / n
 
     def _gradients_param(self, G, n, activations, i):
-        grad_W = (G @ activations[i].T + 2 * self.alpha * self.Ws[i]) / n
+        grad_W = (G @ activations[i].T) / n + 2 * self.alpha * self.Ws[i]
         grad_b = G.sum(axis=1, keepdims=True) / n
 
         return grad_W, grad_b
