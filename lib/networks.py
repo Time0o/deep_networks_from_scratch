@@ -593,8 +593,8 @@ class MultiLayerFullyConnected(Network):
             self.bs.append(np.zeros((d2, 1)))
 
         if batchnorm:
-            self.gamma = [np.ones(d, 1) for d in hidden_nodes]
-            self.beta = [np.zeros(d, 1) for d in hidden_nodes]
+            self.gamma = [np.ones((d, 1)) for d in hidden_nodes]
+            self.beta = [np.zeros((d, 1)) for d in hidden_nodes]
 
     @property
     def params(self):
