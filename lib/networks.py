@@ -757,7 +757,7 @@ class MultiLayerFullyConnected(Network):
         D = raw[i] - mu[i]
         c = np.sum(G2 * D, axis=1, keepdims=True)
 
-        return G1 + G1.sum(axis=1, keepdims=True) / n + (D * c) / n
+        return G1 - G1.sum(axis=1, keepdims=True) / n - (D * c) / n
 
     def _gradients_param(self, G, n, activations, i):
         grad_W = (G @ activations[i].T + 2 * self.alpha * self.Ws[i]) / n
