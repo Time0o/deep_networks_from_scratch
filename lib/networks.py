@@ -554,7 +554,7 @@ class TwoLayerFullyConnected(Network):
         grad_b2 = 1 / ds.n * np.sum(G, axis=1, keepdims=True)
 
         G = self.W2.T @ G
-        G *= H > 0
+        G = G * (H > 0)
 
         grad_W1 = 1 / ds.n * G @ ds.X.T + 2 * self.alpha * self.W1
         grad_b1 = 1 / ds.n * np.sum(G, axis=1, keepdims=True)
@@ -741,7 +741,7 @@ class MultiLayerFullyConnected(Network):
 
     def _propagate_layer(self, G, activations, i):
         G = self.Ws[i].T @ G
-        G = G * activations[i] > 0
+        G = G * (activations[i] > 0)
 
         return G
 
