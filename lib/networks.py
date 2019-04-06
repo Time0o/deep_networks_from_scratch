@@ -20,6 +20,7 @@ N_EPOCHS_DEFAULT = 1
 N_CYCLES_DEFAULT = 1
 HISTORY_PER_CYCLE_DEFAULT = 10
 N_DEAD_EPOCHS_MAX_DEFAULT = 1
+BATCHNORM_ALPHA_DEFAULT = 0.9
 
 
 class TrainHistory:
@@ -570,6 +571,7 @@ class MultiLayerFullyConnected(Network):
                  alpha=0,
                  weight_init='he',
                  batchnorm=False,
+                 batchnorm_alpha=BATCHNORM_ALPHA_DEFAULT,
                  random_seed=None):
 
         super().__init__(random_seed)
@@ -582,6 +584,7 @@ class MultiLayerFullyConnected(Network):
         # regularization
         self.alpha = alpha
         self.batchnorm = batchnorm
+        self.batchnorm_alpha = batchnorm_alpha
 
         # initialize parameters
         self.Ws = []
@@ -596,6 +599,9 @@ class MultiLayerFullyConnected(Network):
         if batchnorm:
             self.gamma = [np.ones((d, 1)) for d in hidden_nodes]
             self.beta = [np.zeros((d, 1)) for d in hidden_nodes]
+
+            self.mu_train = None
+            self.var_train = None
 
     @property
     def params(self):
@@ -618,8 +624,8 @@ class MultiLayerFullyConnected(Network):
 
         return param_names
 
-    def evaluate(self, ds, return_intermediate=False):
-        if self.batchnorm:
+    def evaluate(self, ds, training=False):
+        if self.batchnorm and training:
             raw = []
             normalized = []
             mu = []
@@ -632,30 +638,47 @@ class MultiLayerFullyConnected(Network):
             X = self.Ws[i] @ X + self.bs[i]
 
             if self.batchnorm:
-                raw.append(X)
-
                 # batchnorm
-                m = np.mean(X, axis=1, keepdims=True)
-                v = np.var(X, axis=1, keepdims=True)
+                if training:
+                    m = np.mean(X, axis=1, keepdims=True)
+                    v = np.var(X, axis=1, keepdims=True)
+
+                    raw.append(X)
+                    mu.append(m)
+                    var.append(v)
+                else:
+                    if self.mu_train is None:
+                        m = np.mean(X, axis=1, keepdims=True)
+                    else:
+                        m = self.mu_train[i]
+
+                    if self.var_train is None:
+                        v = np.var(X, axis=1, keepdims=True)
+                    else:
+                        v = self.var_train[i]
+
                 X = np.diag((np.squeeze(v) + np.spacing(1))**-0.5) @ (X - m)
 
-                mu.append(m)
-                var.append(v)
-                normalized.append(X)
+                if training:
+                    normalized.append(X)
 
                 # scale and shift
                 X = self.gamma[i] * X + self.beta[i]
 
             X[X < 0] = 0
-            activations.append(X)
+
+            if training:
+                activations.append(X)
 
         S = self.Ws[-1] @ X + self.bs[-1]
 
         P = np.exp(S)
         P /= P.sum(axis=0)
 
-        if return_intermediate:
+        if training:
             if self.batchnorm:
+                self.last_mu = mu
+                self.last_var = var
                 return raw, normalized, activations, mu, var, P
             else:
                 return activations, P
@@ -676,10 +699,34 @@ class MultiLayerFullyConnected(Network):
         else:
             return cost
 
+    def update(self, gradients, eta):
+        super().update(gradients, eta)
+
+        if not self.batchnorm:
+            return
+
+        alpha = self.batchnorm_alpha
+
+        if self.mu_train is None:
+            self.mu_train = self.last_mu
+        else:
+            self.mu_train = [
+                alpha * mt + (1 - alpha) * m
+                for mt, m in zip(self.mu_train, self.last_mu)
+            ]
+
+        if self.var_train is None:
+            self.var_train = self.last_var
+        else:
+            self.var_train = [
+                alpha * vt + (1 - alpha) * v
+                for vt, v in zip(self.var_train, self.last_var)
+            ]
+
     def _gradients(self, ds):
         if self.batchnorm:
             raw, normalized, activations, mu, var, P = \
-                self.evaluate(ds, return_intermediate=True)
+                self.evaluate(ds, training=True)
 
             grads_W = []
             grads_b = []
@@ -720,7 +767,7 @@ class MultiLayerFullyConnected(Network):
             return self._join_gradients(
                 [grads_W, grads_b, grads_gamma, grads_beta])
         else:
-            activations, P = self.evaluate(ds, return_intermediate=True)
+            activations, P = self.evaluate(ds, training=True)
 
             G = -(ds.Y - P)
 
