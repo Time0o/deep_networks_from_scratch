@@ -1,6 +1,7 @@
 import os
 import pickle
 from abc import ABC, abstractmethod
+from itertools import chain
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -598,32 +599,54 @@ class MultiLayerFullyConnected(Network):
 
     @property
     def params(self):
-        return self.Ws + self.bs
+        params = self.Ws + self.bs
+
+        if self.batchnorm:
+            params += self.gamma + self.beta
+
+        return params
 
     @property
     def param_names(self):
-        return [f'W{i+1}' for i in range(len(self.Ws))] + \
-               [f'b{i+1}' for i in range(len(self.bs))]
+        def names(params, fmt):
+            return [f'{fmt}{i+1}' for i in range(len(params))]
 
-    def evaluate(self, ds, return_activations=False):
-        activations = []
+        param_names = names(self.Ws, 'W') + names(self.bs, 'b')
+
+        if self.batchnorm:
+            param_names += names(self.gamma, 'gamma') + names(self.beta, 'beta')
+
+        return param_names
+
+    def evaluate(self, ds, return_intermediate=False):
+        if self.batchnorm:
+            raw = []
+            normalized = []
+            mu = []
+            var = []
 
         X = ds.X
+        activations = [X]
+
         for i in range(len(self.hidden_nodes)):
             X = self.Ws[i] @ X + self.bs[i]
 
             if self.batchnorm:
+                raw.append(X)
+
                 # batchnorm
-                mu = np.mean(X, axis=1)
-                var = np.var(X, axis=1)
-                X = np.diag(var + np.spacing(1))**-0.5 @ (X - mu)
+                m = np.mean(X, axis=1, keepdims=True)
+                v = np.var(X, axis=1, keepdims=True)
+                X = np.diag((np.squeeze(v) + np.spacing(1))**-0.5) @ (X - m)
+
+                mu.append(m)
+                var.append(v)
+                normalized.append(X)
 
                 # scale and shift
                 X = self.gamma[i] * X + self.beta[i]
 
-            # ReLU
             X[X < 0] = 0
-
             activations.append(X)
 
         S = self.Ws[-1] @ X + self.bs[-1]
@@ -631,8 +654,11 @@ class MultiLayerFullyConnected(Network):
         P = np.exp(S)
         P /= P.sum(axis=0)
 
-        if return_activations:
-            return activations, P
+        if return_intermediate:
+            if self.batchnorm:
+                return raw, normalized, activations, mu, var, P
+            else:
+                return activations, P
         else:
             return P
 
@@ -651,23 +677,107 @@ class MultiLayerFullyConnected(Network):
             return cost
 
     def _gradients(self, ds):
-        activations, P = self.evaluate(ds, return_activations=True)
+        if self.batchnorm:
+            raw, normalized, activations, mu, var, P = \
+                self.evaluate(ds, return_intermediate=True)
 
-        G = -(ds.Y - P)
+            grads_W = []
+            grads_b = []
+            grads_gamma = []
+            grads_beta = []
 
-        grads_W = []
-        grads_b = []
+            G = -(ds.Y - P)
 
-        for i in range(len(self.hidden_nodes), 0, -1):
-            grads_W.append(1 / ds.n * G @ activations[i - 1].T + \
-                           2 * self.alpha * self.Ws[i])
-            grads_b.append(1 / ds.n * G.sum(axis=1, keepdims=True))
+            # compute weight and bias gradients
+            i = len(self.hidden_nodes)
 
-            G = self.Ws[i].T @ G
-            G *= activations[i - 1] > 0
+            grad_W, grad_b = self._gradients_param(G, activations, i)
+            grads_W.append(grad_W)
+            grads_b.append(grad_b)
 
-        grads_W.append(1 / ds.n * G @ ds.X.T + \
-                       2 * self.alpha * self.Ws[0])
-        grads_b.append(1 / ds.n * G.sum(axis=1, keepdims=True))
+            # propagate G to previous layer
+            G = self._propagate_layer(G, activations, i)
 
-        return list(reversed(grads_W)) + list(reversed(grads_b))
+            for i in range(len(self.hidden_nodes) - 1, -1, -1):
+                # compute scale and shift gradients
+                grad_gamma, grad_beta = self._gradients_ss(G, normalized, i)
+                grads_gamma.append(grad_gamma)
+                grads_beta.append(grad_beta)
+
+                # propagate G through scale and shift
+                G = self._propagate_ss(G, i)
+
+                # propagate G through batchnorm
+                G = self._propagate_batchnorm(G, raw, mu, var, i)
+
+                # compute weight and bias gradients
+                grad_W, grad_b = self._gradients_param(G, activations, i)
+                grads_W.append(grad_W)
+                grads_b.append(grad_b)
+
+                # propagate G to previous layer
+                if i > 0:
+                    G = self._propagate_layer(G, activations, i)
+
+            return self._join_gradients(
+                [grads_W, grads_b, grads_gamma, grads_beta])
+        else:
+            activations, P = self.evaluate(ds, return_intermediate=True)
+
+            G = -(ds.Y - P)
+
+            grads_W = []
+            grads_b = []
+
+            for i in range(len(self.hidden_nodes), -1, -1):
+                grad_W, grad_b = self._gradients_param(G, activations, i)
+                grads_W.append(grad_W)
+                grads_b.append(grad_b)
+
+                if i > 0:
+                    G = self._propagate_layer(G, activations, i)
+
+            return self._join_gradients([grads_W, grads_b])
+
+    def _propagate_layer(self, G, activations, i):
+        G = self.Ws[i].T @ G
+        G = G * activations[i] > 0
+
+        return G
+
+    def _propagate_ss(self, G, i):
+        return G * self.gamma[i]
+
+    def _propagate_batchnorm(self, G, raw, mu, var, i):
+        sigma1 = (var[i] + np.spacing(1))**-0.5
+        sigma2 = (var[i] + np.spacing(1))**-1.5
+
+        G1 = G * sigma1
+        G2 = G * sigma2
+
+        D = raw[i] - mu[i]
+        c = np.sum(G2 * D, axis=1, keepdims=True)
+
+        norm = 1 / G.shape[1]
+
+        return G1 + norm * G1.sum(axis=1, keepdims=True) + norm * D * c
+
+    def _gradients_param(self, G, activations, i):
+        norm = 1 / G.shape[1]
+
+        grad_W = norm * G @ activations[i].T + 2 * self.alpha * self.Ws[i]
+        grad_b = norm * G.sum(axis=1, keepdims=True)
+
+        return grad_W, grad_b
+
+    def _gradients_ss(self, G, normalized, i):
+        norm = 1 / G.shape[1]
+
+        grad_gamma = norm * np.sum(G * normalized[i], axis=1, keepdims=True)
+        grad_beta = norm * G.sum(axis=1, keepdims=True)
+
+        return grad_gamma, grad_beta
+
+    @staticmethod
+    def _join_gradients(grads):
+        return list(chain(*[reversed(g) for g in grads]))
