@@ -493,6 +493,7 @@ class MultiLayerFullyConnected(Network):
                  num_classes,
                  alpha=0,
                  weight_init='he',
+                 batchnorm=False,
                  random_seed=None):
 
         super().__init__(random_seed)
@@ -500,12 +501,16 @@ class MultiLayerFullyConnected(Network):
         if weight_init not in ['standard', 'xavier', 'he']:
             raise ValueError("invalid weight initializer")
 
+        # network dimensions
         self.input_size = input_size
         self.hidden_nodes = hidden_nodes
         self.num_classes = num_classes
 
+        # regularization
         self.alpha = alpha
+        self.batchnorm = batchnorm
 
+        # initialize parameters
         self.Ws = []
         self.bs = []
 
@@ -514,6 +519,10 @@ class MultiLayerFullyConnected(Network):
 
             self.Ws.append(self._rand_param((d2, d1), init=weight_init))
             self.bs.append(np.zeros((d2, 1)))
+
+        if batchnorm:
+            self.gamma = [np.ones(d, 1) for d in hidden_nodes]
+            self.beta = [np.zeros(d, 1) for d in hidden_nodes]
 
     @property
     def params(self):
@@ -530,6 +539,17 @@ class MultiLayerFullyConnected(Network):
         X = ds.X
         for i in range(len(self.hidden_nodes)):
             X = self.Ws[i] @ X + self.bs[i]
+
+            if self.batchnorm:
+                # batchnorm
+                mu = np.mean(X, axis=1)
+                var = np.var(X, axis=1)
+                X = np.diag(var + np.spacing(1))**-0.5 @ (X - mu)
+
+                # scale and shift
+                X = self.gamma[i] * X + self.beta[i]
+
+            # ReLU
             X[X < 0] = 0
 
             activations.append(X)
