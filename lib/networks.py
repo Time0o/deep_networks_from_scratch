@@ -689,18 +689,16 @@ class MultiLayerFullyConnected(Network):
             G = -(ds.Y - P)
 
             # compute weight and bias gradients
-            i = len(self.hidden_nodes)
-
-            grad_W, grad_b = self._gradients_param(G, activations, i)
+            grad_W, grad_b = self._gradients_param(G, ds.n, activations, -1)
             grads_W.append(grad_W)
             grads_b.append(grad_b)
 
             # propagate G to previous layer
-            G = self._propagate_layer(G, activations, i)
+            G = self._propagate_layer(G, activations, -1)
 
             for i in range(len(self.hidden_nodes) - 1, -1, -1):
                 # compute scale and shift gradients
-                grad_gamma, grad_beta = self._gradients_ss(G, normalized, i)
+                grad_gamma, grad_beta = self._gradients_ss(G, ds.n, normalized, i)
                 grads_gamma.append(grad_gamma)
                 grads_beta.append(grad_beta)
 
@@ -708,10 +706,10 @@ class MultiLayerFullyConnected(Network):
                 G = self._propagate_ss(G, i)
 
                 # propagate G through batchnorm
-                G = self._propagate_batchnorm(G, raw, mu, var, i)
+                G = self._propagate_batchnorm(G, ds.n, raw, mu, var, i)
 
                 # compute weight and bias gradients
-                grad_W, grad_b = self._gradients_param(G, activations, i)
+                grad_W, grad_b = self._gradients_param(G, ds.n, activations, i)
                 grads_W.append(grad_W)
                 grads_b.append(grad_b)
 
@@ -730,7 +728,8 @@ class MultiLayerFullyConnected(Network):
             grads_b = []
 
             for i in range(len(self.hidden_nodes), -1, -1):
-                grad_W, grad_b = self._gradients_param(G, activations, i)
+                grad_W, grad_b = self._gradients_param(G, ds.n, activations, i)
+
                 grads_W.append(grad_W)
                 grads_b.append(grad_b)
 
@@ -748,7 +747,7 @@ class MultiLayerFullyConnected(Network):
     def _propagate_ss(self, G, i):
         return G * self.gamma[i]
 
-    def _propagate_batchnorm(self, G, raw, mu, var, i):
+    def _propagate_batchnorm(self, G, n, raw, mu, var, i):
         sigma1 = (var[i] + np.spacing(1))**-0.5
         sigma2 = (var[i] + np.spacing(1))**-1.5
 
@@ -758,23 +757,17 @@ class MultiLayerFullyConnected(Network):
         D = raw[i] - mu[i]
         c = np.sum(G2 * D, axis=1, keepdims=True)
 
-        norm = 1 / G.shape[1]
+        return G1 + G1.sum(axis=1, keepdims=True) / n + (D * c) / n
 
-        return G1 + norm * G1.sum(axis=1, keepdims=True) + norm * D * c
-
-    def _gradients_param(self, G, activations, i):
-        norm = 1 / G.shape[1]
-
-        grad_W = norm * G @ activations[i].T + 2 * self.alpha * self.Ws[i]
-        grad_b = norm * G.sum(axis=1, keepdims=True)
+    def _gradients_param(self, G, n, activations, i):
+        grad_W = (G @ activations[i].T + 2 * self.alpha * self.Ws[i]) / n
+        grad_b = G.sum(axis=1, keepdims=True) / n
 
         return grad_W, grad_b
 
-    def _gradients_ss(self, G, normalized, i):
-        norm = 1 / G.shape[1]
-
-        grad_gamma = norm * np.sum(G * normalized[i], axis=1, keepdims=True)
-        grad_beta = norm * G.sum(axis=1, keepdims=True)
+    def _gradients_ss(self, G, n, normalized, i):
+        grad_gamma = np.sum(G * normalized[i], axis=1, keepdims=True) / n
+        grad_beta = G.sum(axis=1, keepdims=True) / n
 
         return grad_gamma, grad_beta
 
