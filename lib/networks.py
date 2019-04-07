@@ -1,3 +1,4 @@
+import math
 import os
 import pickle
 from abc import ABC, abstractmethod
@@ -162,19 +163,23 @@ class Network(ABC):
               n_dead_epochs_max=N_DEAD_EPOCHS_MAX_DEFAULT,
               shuffle=False,
               stop_early=False,
-              find_best_params=False,
+              stop_early_metric='loss',
+              stop_early_find_best_params=False,
               verbose=False):
 
         # keep track of loss and accuracy histories
         history = TrainHistory()
 
         # keep track of best parameters
+
         if stop_early:
-            acc_best = 0
             dead_epochs = 0
 
-        if find_best_params:
-            params_best = None
+            loss_best = math.inf
+            acc_best = 0
+
+            if stop_early_find_best_params:
+                params_best = None
 
         for ep in range(n_epochs):
             # optionally shuffle training data
@@ -205,23 +210,30 @@ class Network(ABC):
             # extend history
             history.extend(self, ds_train, ds_val)
 
-            acc_last = history.val_accuracy[-1]
-
             if stop_early:
-                if acc_last > acc_best:
-                    acc_best = acc_last
+                loss_last = history.val_loss[-1]
+                acc_last = history.val_accuracy[-1]
+
+                if (stop_early_metric == 'loss' and loss_last > loss_best) or \
+                   (stop_early_metric == 'accuracy' and acc_last > acc_best):
+
                     dead_epochs = 0
+
+                    if stop_early_find_best_params:
+                        params_best = [p.copy() for p in self.params]
                 else:
                     dead_epochs += 1
 
                     if dead_epochs >= n_dead_epochs_max:
                         break
 
-            if find_best_params:
-                if acc_last > acc_best:
-                    params_best = [p.copy() for p in self.params]
+                if loss_last > loss_best:
+                    loss_best = loss_last
 
-        if find_best_params:
+                if acc_last > acc_best:
+                    acc_best = acc_last
+
+        if stop_early and stop_early_find_best_params:
             self.params = params_best
 
         history.add_final_network(self)
