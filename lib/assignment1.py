@@ -29,9 +29,9 @@ def train_networks(ds_train,
                                             random_seed=random_seed)
 
         history = network.train(ds_train,
-    	                        ds_val,
-    	                        n_epochs=hyperparams['epochs'],
-    	                        verbose=True)
+                                ds_val,
+                                n_epochs=hyperparams['epochs'],
+                                verbose=True)
 
         history.save(pickle_dir,
                      [('alpha', alpha), ('eta', eta)],
