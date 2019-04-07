@@ -12,11 +12,12 @@ def gradient_error(grad, grad_num):
         print(fmt.format(title, d.max(), d.mean(), d.std()))
 
 
-def compare_gradients(network_constructor, ds, params):
+def compare_gradients(network_constructor, ds, params, random_seed=None):
     for n, dims, alpha in params:
         network = network_constructor(input_size=dims,
                                       num_classes=ds.num_classes,
-                                      alpha=alpha)
+                                      alpha=alpha,
+                                      random_seed=random_seed)
 
         ds_sub = ds.subsample(n=n, dims=dims)
 
