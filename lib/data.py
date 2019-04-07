@@ -1,4 +1,5 @@
 import os
+from functools import partial
 from glob import glob
 
 import matplotlib.pyplot as plt
@@ -14,10 +15,9 @@ TEST_BATCH_FMT = 'test_batch.mat'
 class Dataset:
     def __init__(self, X, Y, y, labels=None, add_bias=False):
         if add_bias:
-            self.X = np.vstack((X, np.ones(1, X.shape[1])))
-        else:
-            self.X = X
+            X = np.vstack((X, np.ones((1, X.shape[1]))))
 
+        self.X = X
         self.Y = Y
         self.y = y
         self.labels = labels
@@ -107,6 +107,7 @@ class Cifar:
                              n_val,
                              n_train=None,
                              n_test=None,
+                             add_bias=False,
                              shuffle=False,
                              normalize='scale'):
 
@@ -162,9 +163,11 @@ class Cifar:
         else:
             raise ValueError("'normalize' must be either 'scale' or 'zscore'")
 
-        return Dataset(data_train, labels_cat_train, labels_train, self._labels), \
-               Dataset(data_val, labels_cat_val, labels_val, self._labels), \
-               Dataset(data_test, labels_cat_test, labels_test, self._labels)
+        ds = partial(Dataset, labels=self._labels, add_bias=add_bias)
+
+        return ds(data_train, labels_cat_train, labels_train), \
+               ds(data_val, labels_cat_val, labels_val), \
+               ds(data_test, labels_cat_test, labels_test)
 
     def preview(self, which='train', n=5, shuffle=False):
         _, axes = plt.subplots(len(self._labels), n,
