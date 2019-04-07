@@ -335,6 +335,8 @@ class Network(ABC):
             fig.subplots_adjust(hspace=0.1, wspace=0.1)
 
         for w, ax in zip(self.W, axes.flatten()):
+            w = w[:3072]
+
             img = ((w - w.min()) / (w.max() - w.min()))
 
             ax.imshow(img.reshape(3, 32, 32).transpose(1, 2, 0))
