@@ -12,12 +12,21 @@ def _axes(rows, cols, figsize=None):
     return axes
 
 
-def train_networks(ds_train, ds_val, hyperparams, pickle_dir, postfix=None):
+def train_networks(ds_train,
+                   ds_val,
+                   hyperparams,
+                   pickle_dir,
+                   postfix=None,
+                   random_seed=None):
+
     loss = hyperparams.get('loss', 'cross_entropy')
 
     for alpha, eta in zip(hyperparams['alpha'], hyperparams['eta']):
-        network = SingleLayerFullyConnected(
-    	    ds_train.input_size, ds_train.num_classes, alpha=alpha, loss=loss)
+        network = SingleLayerFullyConnected(ds_train.input_size,
+                                            ds_train.num_classes,
+                                            alpha=alpha,
+                                            loss=loss,
+                                            random_seed=random_seed)
 
         history = network.train(ds_train,
     	                        ds_val,
