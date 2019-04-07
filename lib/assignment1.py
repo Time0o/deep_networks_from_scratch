@@ -30,6 +30,7 @@ def train_networks(ds_train,
 
         history = network.train(ds_train,
                                 ds_val,
+                                eta=eta,
                                 n_epochs=hyperparams['epochs'],
                                 verbose=True)
 
