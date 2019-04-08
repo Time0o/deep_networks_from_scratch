@@ -3,6 +3,7 @@ from functools import partial
 from glob import glob
 
 import matplotlib.pyplot as plt
+import mxnet as mx
 import numpy as np
 import scipy.io
 
@@ -10,6 +11,26 @@ import scipy.io
 BATCH_META_FMT = 'batches.meta.mat'
 DATA_BATCH_FMT = 'data_batch_*.mat'
 TEST_BATCH_FMT = 'test_batch.mat'
+
+
+def _to_display(img, normalize=False):
+    img = img.reshape(3, 32, 32).transpose(1, 2, 0)
+
+    if normalize:
+        img = img / 255
+
+    return img
+
+
+def _remove_ticks(ax):
+    ax.tick_params(axis='both',
+                   which='both',
+                   bottom=False,
+                   top=False,
+                   left=False,
+                   right=False,
+                   labelbottom=False,
+                   labelleft=False)
 
 
 class Dataset:
@@ -36,11 +57,72 @@ class Dataset:
                        self.Y[:, start:end],
                        self.y[:, start:end])
 
+    def augment(self, jitter_ratio=1, verbose=False):
+        # to avoid trouble, only implement this for the specific case of
+        # Cifar images without added bias row
+        assert self.input_size == 3072
+
+        aug = mx.image.ColorJitterAug(
+            brightness=jitter_ratio,
+            contrast=jitter_ratio,
+            saturation=jitter_ratio)
+
+        X_aug = np.empty_like(self.X)
+
+        for k in range(self.n):
+            if verbose:
+                fmt = f"{k+1}/{self.n}"
+
+                if k < self.n - 1:
+                    print(fmt.ljust(80) + "\r", end='', flush=True)
+                else:
+                    print(fmt.ljust(80), flush=True)
+
+            img = _to_display(self.X[:, k])
+
+            img = aug(mx.nd.array(img)).asnumpy()
+
+            img = (img - img.min()) / (img.max() - img.min())
+
+            X_aug[:, k] = img.transpose(2, 0, 1).reshape(self.input_size)
+
+        return Dataset(X_aug, self.Y, self.y)
+
     def subsample(self, dims=None, n=None):
         dims = dims if dims is not None else self.input_size
         n = n if n is not None else self.n
 
         return Dataset(self.X[:dims, :n], self.Y[:dims, :n], self.y[:dims, :n])
+
+    def bag(self):
+        i = np.random.choice(self.n, size=self.n)
+
+        return Dataset(self.X[:, i], self.Y[:, i], self.y[:, i])
+
+    def join(self, ds):
+        X = np.concatenate((self.X, ds.X), axis=1)
+        Y = np.concatenate((self.Y, ds.Y), axis=1)
+        y = np.concatenate((self.y, ds.y), axis=1)
+
+        return Dataset(X, Y, y)
+
+    def preview(self, w=3, h=3, shuffle=False):
+        _, axes = plt.subplots(h, w, figsize=(8, 8 * (h / w)))
+
+        X = self.X
+
+        if shuffle:
+            i = np.random.permutation(X.shape[1])
+            X = X[:, i]
+
+        # display images
+        for i in range(h):
+            for j in range(w):
+                axes[i, j].imshow(_to_display(X[:, i * w + j]))
+
+                _remove_ticks(axes[i, j])
+
+        plt.tight_layout(pad=0, w_pad=0, h_pad=0)
 
 
 class Cifar:
@@ -191,18 +273,9 @@ class Cifar:
         # display images
         for i, label in enumerate(self._labels):
             for j, k in enumerate(np.where(np.squeeze(labels) == i)[0][:n]):
-                img = data[:, k].reshape(3, 32, 32).transpose(1, 2, 0) / 255
+                axes[i, j].imshow(_to_display(data[:, k], normalize=True))
 
-                axes[i, j].imshow(img)
-
-                axes[i, j].tick_params(axis='both',
-                                       which='both',
-                                       bottom=False,
-                                       top=False,
-                                       left=False,
-                                       right=False,
-                                       labelbottom=False,
-                                       labelleft=False)
+                _remove_ticks(axes[i, j])
 
             axes[i, 0].set_ylabel(label, labelpad=60, rotation=0, size='large')
 
