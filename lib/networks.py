@@ -158,6 +158,7 @@ class Network(ABC):
               ds_train,
               ds_val,
               eta=ETA_DEFAULT,
+              eta_decay_factor=None,
               n_batch=N_BATCH_DEFAULT,
               n_epochs=N_EPOCHS_DEFAULT,
               n_dead_epochs_max=N_DEAD_EPOCHS_MAX_DEFAULT,
@@ -171,7 +172,6 @@ class Network(ABC):
         history = TrainHistory()
 
         # keep track of best parameters
-
         if stop_early:
             dead_epochs = 0
 
@@ -232,6 +232,10 @@ class Network(ABC):
 
                 if acc_last > acc_best:
                     acc_best = acc_last
+
+            # decay learning rate
+            if eta_decay_factor is not None:
+                eta *= eta_decay_factor
 
         if stop_early and stop_early_find_best_params:
             self.params = params_best
@@ -404,6 +408,7 @@ class SingleLayerFullyConnected(Network):
                  num_classes,
                  alpha=0,
                  loss='cross_entropy',
+                 weight_init='standard',
                  random_seed=None):
 
         super().__init__(random_seed)
@@ -417,7 +422,7 @@ class SingleLayerFullyConnected(Network):
         self.alpha = alpha
         self._svm_loss = loss == 'svm'
 
-        self.W = self._rand_param((num_classes, input_size))
+        self.W = self._rand_param((num_classes, input_size), init=weight_init)
 
         if not self._svm_loss:
             self.b = self._rand_param((num_classes, 1))
