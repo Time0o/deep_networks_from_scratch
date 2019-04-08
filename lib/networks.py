@@ -214,7 +214,7 @@ class Network(ABC):
                 loss_last = history.val_loss[-1]
                 acc_last = history.val_accuracy[-1]
 
-                if (stop_early_metric == 'loss' and loss_last > loss_best) or \
+                if (stop_early_metric == 'loss' and loss_last < loss_best) or \
                    (stop_early_metric == 'accuracy' and acc_last > acc_best):
 
                     dead_epochs = 0
@@ -227,7 +227,7 @@ class Network(ABC):
                     if dead_epochs >= n_dead_epochs_max:
                         break
 
-                if loss_last > loss_best:
+                if loss_last < loss_best:
                     loss_best = loss_last
 
                 if acc_last > acc_best:
