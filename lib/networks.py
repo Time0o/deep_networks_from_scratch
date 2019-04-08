@@ -24,6 +24,30 @@ N_DEAD_EPOCHS_MAX_DEFAULT = 1
 BATCHNORM_ALPHA_DEFAULT = 0.9
 
 
+def _visualize_performance(ds, acc, y_pred, ax=None, title=None):
+     if ax is None:
+         _, ax = plt.subplots(1, 1, figsize=(8, 8))
+
+     df = pd.DataFrame(confusion_matrix(np.squeeze(ds.y), y_pred),
+                       index=ds.labels,
+                       columns=ds.labels)
+
+     hm = sns.heatmap(
+         df, cbar=False, annot=True, fmt='d', cmap='Blues', ax=ax)
+
+     xlabels = hm.xaxis.get_ticklabels()
+     hm.xaxis.set_ticklabels(xlabels, rotation=45, ha='right')
+
+     if title is not None:
+         fmt = title + ", Total Accuracy is {:.3f}"
+     else:
+         fmt = "Total Accuracy is {:.3f}"
+
+     ax.set_title(fmt.format(acc))
+
+     plt.tight_layout()
+
+
 class TrainHistory:
     def __init__(self, store_learning_rate=False):
         self.train_loss = []
@@ -147,10 +171,11 @@ class Network(ABC):
         for i, param in enumerate(self.params):
             param -= eta * gradients[i]
 
-    def accuracy(self, ds):
-        P = self.evaluate(ds)
+    def predict(self, ds):
+        return self.evaluate(ds).argmax(axis=0)
 
-        correct = np.count_nonzero(ds.y == P.argmax(axis=0))
+    def accuracy(self, ds):
+        correct = np.count_nonzero(ds.y == self.predict(ds))
 
         return correct / ds.n
 
@@ -166,6 +191,7 @@ class Network(ABC):
               stop_early=False,
               stop_early_metric='loss',
               stop_early_find_best_params=False,
+              stop_early_best_params_metric='acc',
               verbose=False):
 
         # keep track of loss and accuracy histories
@@ -214,18 +240,25 @@ class Network(ABC):
                 loss_last = history.val_loss[-1]
                 acc_last = history.val_accuracy[-1]
 
-                if (stop_early_metric == 'loss' and loss_last < loss_best) or \
-                   (stop_early_metric == 'accuracy' and acc_last > acc_best):
+                loss_improved = loss_last < loss_best
+                acc_improved = acc_last > acc_best
+
+                if (stop_early_metric == 'loss' and loss_improved) or \
+                   (stop_early_metric == 'acc' and acc_improved):
 
                     dead_epochs = 0
 
-                    if stop_early_find_best_params:
-                        params_best = [p.copy() for p in self.params]
                 else:
                     dead_epochs += 1
 
                     if dead_epochs >= n_dead_epochs_max:
                         break
+
+                if stop_early_find_best_params:
+                    if (stop_early_best_params_metric == 'loss' and loss_improved) or \
+                       (stop_early_best_params_metric == 'acc' and acc_improved):
+
+                        params_best = [p.copy() for p in self.params]
 
                 if loss_last < loss_best:
                     loss_best = loss_last
@@ -315,31 +348,10 @@ class Network(ABC):
         return history
 
     def visualize_performance(self, ds, ax=None, title=None):
-        if ax is None:
-            _, ax = plt.subplots(1, 1, figsize=(8, 8))
-
         acc = self.accuracy(ds)
+        y_pred = self.predict(ds)
 
-        y_pred = np.argmax(self.evaluate(ds), axis=0)
-
-        df = pd.DataFrame(confusion_matrix(np.squeeze(ds.y), y_pred),
-                          index=ds.labels,
-                          columns=ds.labels)
-
-        hm = sns.heatmap(
-            df, cbar=False, annot=True, fmt='d', cmap='Blues', ax=ax)
-
-        xlabels = hm.xaxis.get_ticklabels()
-        hm.xaxis.set_ticklabels(xlabels, rotation=45, ha='right')
-
-        if title is not None:
-            fmt = title + ", Total Accuracy is {:.3f}"
-        else:
-            fmt = "Total Accuracy is {:.3f}"
-
-        ax.set_title(fmt.format(acc))
-
-        plt.tight_layout()
+        _visualize_performance(ds, acc, y_pred, ax=ax, title=title)
 
     def visualize_weights(self, axes=None):
         if not hasattr(self, 'W'):
@@ -840,3 +852,33 @@ class MultiLayerFullyConnected(Network):
     @staticmethod
     def _join_gradients(grads):
         return list(chain(*[reversed(g) for g in grads]))
+
+
+class EnsembleClassifier:
+    def __init__(self, networks):
+        self.networks = networks
+
+    def predict(self, ds):
+        y_pred = np.empty((len(self.networks), ds.n), dtype=int)
+
+        for i, network in enumerate(self.networks):
+            y_pred[i, :] = network.evaluate(ds).argmax(axis=0)
+
+        y_pred_ensemble = np.empty(ds.n, dtype=int)
+        for i in range(ds.n):
+            bc = np.bincount(y_pred[:, i])
+            pred_max = np.flatnonzero(bc == bc.max())
+            y_pred_ensemble[i] = np.random.choice(pred_max)
+
+        return y_pred_ensemble
+
+    def accuracy(self, ds):
+        correct = np.count_nonzero(ds.y == self.predict(ds))
+
+        return correct / ds.n
+
+    def visualize_performance(self, ds, ax=None, title=None):
+        acc = self.accuracy(ds)
+        y_pred = self.predict(ds)
+
+        _visualize_performance(ds, acc, y_pred, ax=ax, title=title)
