@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 
 from network import Network
@@ -79,6 +80,27 @@ class SingleLayerFullyConnected(Network):
             return loss, cost
         else:
             return cost
+
+    def visualize_weights(self, axes=None):
+        if axes is None:
+            fig, axes = plt.subplots(2, self.W.shape[0] // 2, figsize=(8, 4))
+            fig.subplots_adjust(hspace=0.1, wspace=0.1)
+
+        for w, ax in zip(self.W, axes.flatten()):
+            w = w[:3072]
+
+            img = ((w - w.min()) / (w.max() - w.min()))
+
+            ax.imshow(img.reshape(3, 32, 32).transpose(1, 2, 0))
+
+            ax.tick_params(axis='both',
+                           which='both',
+                           bottom=False,
+                           top=False,
+                           left=False,
+                           right=False,
+                           labelbottom=False,
+                           labelleft=False)
 
     def _svm_delta(self, ds):
         s = self.evaluate(ds)
