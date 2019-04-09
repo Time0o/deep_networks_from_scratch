@@ -37,3 +37,19 @@ def compare_gradients(network_constructor,
             print(param + ':')
             gradient_error(grad, grad_num)
             print()
+
+
+def compare_gradients_recurrent(network_constructor,
+                                ds,
+                                h=NUM_GRAD_DELTA,
+                                random_seed=None):
+
+    network = network_constructor(random_seed=random_seed)
+
+    grads_num = network.gradients(ds, numerical=True, h=h)
+    grads = network.gradients(ds)
+
+    for grad_num, grad, param in zip(grads_num, grads, network.param_names):
+        print(param + ':')
+        gradient_error(grad, grad_num)
+        print()
