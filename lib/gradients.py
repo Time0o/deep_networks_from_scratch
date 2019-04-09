@@ -1,5 +1,7 @@
 import numpy as np
 
+from network import NUM_GRAD_DELTA
+
 
 def gradient_error(grad, grad_num):
     eps = np.full_like(grad, np.spacing(1))
@@ -12,7 +14,12 @@ def gradient_error(grad, grad_num):
         print(fmt.format(title, d.max(), d.mean(), d.std()))
 
 
-def compare_gradients(network_constructor, ds, params, random_seed=None):
+def compare_gradients(network_constructor,
+                      ds,
+                      params,
+                      h=NUM_GRAD_DELTA,
+                      random_seed=None):
+
     for n, dims, alpha in params:
         network = network_constructor(input_size=dims,
                                       num_classes=ds.num_classes,
@@ -21,7 +28,7 @@ def compare_gradients(network_constructor, ds, params, random_seed=None):
 
         ds_sub = ds.subsample(n=n, dims=dims)
 
-        grads_num = network.gradients(ds_sub, numerical=True)
+        grads_num = network.gradients(ds_sub, numerical=True, h=h)
         grads = network.gradients(ds_sub)
 
         print(f"{dims} dimensions, {n} sample(s), lambda = {alpha}:\n")
