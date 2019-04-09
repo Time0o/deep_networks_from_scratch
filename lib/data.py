@@ -34,7 +34,7 @@ def _remove_ticks(ax):
 
 
 class Dataset:
-    def __init__(self, X, Y, y, labels=None, add_bias=False):
+    def __init__(self, X, Y, y, labels=None, add_bias=False, visual=True):
         if add_bias:
             X = np.vstack((X, np.ones((1, X.shape[1]))))
 
@@ -47,6 +47,8 @@ class Dataset:
         self.input_size = X.shape[0]
         self.num_classes = Y.shape[0]
 
+        self.visual = visual
+
     def shuffle(self):
         i = np.random.permutation(self.n)
 
@@ -57,7 +59,28 @@ class Dataset:
                        self.Y[:, start:end],
                        self.y[:, start:end])
 
+    def subsample(self, dims=None, n=None):
+        dims = dims if dims is not None else self.input_size
+        n = n if n is not None else self.n
+
+        return Dataset(self.X[:dims, :n], self.Y[:dims, :n], self.y[:dims, :n])
+
+    def bag(self):
+        i = np.random.choice(self.n, size=self.n)
+
+        return Dataset(self.X[:, i], self.Y[:, i], self.y[:, i])
+
+    def join(self, ds):
+        X = np.concatenate((self.X, ds.X), axis=1)
+        Y = np.concatenate((self.Y, ds.Y), axis=1)
+        y = np.concatenate((self.y, ds.y), axis=1)
+
+        return Dataset(X, Y, y)
+
     def augment(self, jitter_ratio=1, verbose=False):
+        if not self.visual:
+            raise ValueError("can only augment image data")
+
         # to avoid trouble, only implement this for the specific case of
         # Cifar images without added bias row
         assert self.input_size == 3072
@@ -88,25 +111,11 @@ class Dataset:
 
         return Dataset(X_aug, self.Y, self.y)
 
-    def subsample(self, dims=None, n=None):
-        dims = dims if dims is not None else self.input_size
-        n = n if n is not None else self.n
-
-        return Dataset(self.X[:dims, :n], self.Y[:dims, :n], self.y[:dims, :n])
-
-    def bag(self):
-        i = np.random.choice(self.n, size=self.n)
-
-        return Dataset(self.X[:, i], self.Y[:, i], self.y[:, i])
-
-    def join(self, ds):
-        X = np.concatenate((self.X, ds.X), axis=1)
-        Y = np.concatenate((self.Y, ds.Y), axis=1)
-        y = np.concatenate((self.y, ds.y), axis=1)
-
-        return Dataset(X, Y, y)
 
     def preview(self, w=3, h=3, shuffle=False):
+        if not self.visual:
+            raise ValueError("can only preview image data")
+
         _, axes = plt.subplots(h, w, figsize=(8, 8 * (h / w)))
 
         X = self.X
@@ -293,7 +302,8 @@ class Text:
 
     def _load(self):
         with open(self._filename, 'r') as f:
-            self.characters = sorted(set(f.read()))
+            self.text = f.read()
+            self.characters = sorted(set(self.text))
 
         self.num_characters = len(self.characters)
 
@@ -327,3 +337,26 @@ class Text:
             inds = np.argmax(inds, axis=0)
 
         return ''.join([self._ind_to_char[i] for i in inds])
+
+    def sequence(self, beg, end, rep='characters', labeled=False):
+        X = self._sequence(beg, end, rep=rep)
+
+        if labeled:
+            Y = self._sequence(beg + 1, end + 1, rep=rep)
+            return Dataset(X, Y, Y.argmax(axis=0), visual=False)
+        else:
+            return X
+
+    def _sequence(self, beg, end, rep):
+        seq = self.text[beg:end]
+
+        if rep == 'characters':
+            return seq
+        elif rep == 'indices':
+            return self.get_indices(seq)
+        elif rep == 'indices_one_hot':
+            return self.get_indices(seq, one_hot=True)
+        else:
+            raise ValueError("invalid 'rep'")
+
+        return seq
