@@ -9,6 +9,8 @@ class Recurrent(Network):
                  hidden_state_size,
                  random_seed=None):
 
+        super().__init__(random_seed)
+
         self.b = self._rand_param((hidden_state_size, 1))
         self.c = self._rand_param((input_size, 1))
         self.U = self._rand_param((hidden_state_size, input_size))
