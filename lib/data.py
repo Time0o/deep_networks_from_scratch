@@ -300,6 +300,20 @@ class Text:
         self._char_to_ind = {c: i for i, c in enumerate(self.characters)}
         self._ind_to_char = {i: c for i, c in enumerate(self.characters)}
 
+    def get_index(self, char, one_hot=False):
+        ind = self._char_to_ind[char]
+
+        if one_hot:
+            return np.eye(self.num_characters)[ind][:, np.newaxis]
+        else:
+            return ind
+
+    def get_character(self, ind, one_hot=False):
+        if one_hot:
+            ind = np.argmax(ind)
+
+        return self._ind_to_char[ind]
+
     def get_indices(self, chars, one_hot=False):
         inds = [self._char_to_ind[c] for c in chars]
 
