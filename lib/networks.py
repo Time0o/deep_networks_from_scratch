@@ -4,10 +4,8 @@ from itertools import chain
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import seaborn as sns
-from sklearn.metrics import confusion_matrix
 
+from _visualize_performance import _visualize_performance
 from history import TrainHistory
 
 
@@ -22,30 +20,6 @@ N_CYCLES_DEFAULT = 1
 HISTORY_PER_CYCLE_DEFAULT = 10
 N_DEAD_EPOCHS_MAX_DEFAULT = 1
 BATCHNORM_ALPHA_DEFAULT = 0.9
-
-
-def _visualize_performance(ds, acc, y_pred, ax=None, title=None):
-     if ax is None:
-         _, ax = plt.subplots(1, 1, figsize=(8, 8))
-
-     df = pd.DataFrame(confusion_matrix(np.squeeze(ds.y), y_pred),
-                       index=ds.labels,
-                       columns=ds.labels)
-
-     hm = sns.heatmap(
-         df, cbar=False, annot=True, fmt='d', cmap='Blues', ax=ax)
-
-     xlabels = hm.xaxis.get_ticklabels()
-     hm.xaxis.set_ticklabels(xlabels, rotation=45, ha='right')
-
-     if title is not None:
-         fmt = title + ", Total Accuracy is {:.3f}"
-     else:
-         fmt = "Total Accuracy is {:.3f}"
-
-     ax.set_title(fmt.format(acc))
-
-     plt.tight_layout()
 
 
 class Network(ABC):
@@ -766,33 +740,3 @@ class MultiLayerFullyConnected(Network):
     @staticmethod
     def _join_gradients(grads):
         return list(chain(*[reversed(g) for g in grads]))
-
-
-class EnsembleClassifier:
-    def __init__(self, networks):
-        self.networks = networks
-
-    def predict(self, ds):
-        y_pred = np.empty((len(self.networks), ds.n), dtype=int)
-
-        for i, network in enumerate(self.networks):
-            y_pred[i, :] = network.evaluate(ds).argmax(axis=0)
-
-        y_pred_ensemble = np.empty(ds.n, dtype=int)
-        for i in range(ds.n):
-            bc = np.bincount(y_pred[:, i])
-            pred_max = np.flatnonzero(bc == bc.max())
-            y_pred_ensemble[i] = np.random.choice(pred_max)
-
-        return y_pred_ensemble
-
-    def accuracy(self, ds):
-        correct = np.count_nonzero(ds.y == self.predict(ds))
-
-        return correct / ds.n
-
-    def visualize_performance(self, ds, ax=None, title=None):
-        acc = self.accuracy(ds)
-        y_pred = self.predict(ds)
-
-        _visualize_performance(ds, acc, y_pred, ax=ax, title=title)
