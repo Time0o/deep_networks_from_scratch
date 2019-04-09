@@ -43,7 +43,7 @@ class Network(ABC):
         pass
 
     @abstractmethod
-    def cost(self, ds, return_loss=False):
+    def cost(self, ds):
         pass
 
     def gradients(self, ds, numerical=False, h=NUM_GRAD_DELTA):
