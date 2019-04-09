@@ -56,14 +56,36 @@ class SearchResultSeries:
         self.results = results
 
     def optimum(self):
-        params = [res.params for res in self.results]
-        accs = [res.acc_max for res in self.results]
+        params = self._params()
+        accs = self._accs()
 
         return params[np.argmax(accs)]
 
+    def top(self, n=5, verbose=False):
+        params = self._params()
+        accs = self._accs()
+
+        res = [(params[i], accs[i]) for i in np.argsort(accs)[::-1]][:n]
+
+        if verbose:
+            for i, (p, acc) in enumerate(res):
+                param_values = []
+
+                for name, val in p.items():
+                    val_fmt = ':.3' if isinstance(val, float) else ':'
+
+                    if val < 1e-3 or val > 1e3:
+                        val_fmt += 'e'
+
+                    fmt = '{{}} = {{{}}}'.format(val_fmt)
+                    param_values.append(fmt.format(name, val))
+
+                fmt = '{}: {} => {:2.3}'
+                print(fmt.format(i + 1, ','.join(param_values), acc))
+
     def summarize(self, top=5):
-        params = [res.params for res in self.results]
-        accs = [res.acc_max for res in self.results]
+        params = self._params()
+        accs = self._accs()
 
         print("best accuracies:")
 
@@ -82,9 +104,9 @@ class SearchResultSeries:
                 acc, ', '.join(param_strings)))
 
     def visualize(self, param, param_=None):
-        values = [res.params[param.name] for res in self.results]
-        costs = [res.cost_min for res in self.results]
-        accs = [res.acc_max for res in self.results]
+        values = self._values(param)
+        costs = self._costs()
+        accs = self._accs()
 
         if param_ is None:
             _, (ax_cost, ax_acc) = plt.subplots(1, 2, figsize=(10, 5))
@@ -103,10 +125,10 @@ class SearchResultSeries:
 
             plt.tight_layout()
         else:
+            values_ = self._values(_param)
+
             fig, ax = plt.subplots(1, 1, figsize=(10, 10))
             cax = fig.add_axes()
-
-            values_ = [res.params[param_.name] for res in results]
 
             grid = np.linspace(min(values), max(values), 100)
             grid_ = np.linspace(min(values_), max(values_), 100)
@@ -134,6 +156,18 @@ class SearchResultSeries:
     def load(cls, dirpath, postfix=None):
         with open(cls._path(dirpath, postfix), 'rb') as f:
             return pickle.load(f)
+
+    def _params(self):
+        return [res.params for res in self.results]
+
+    def _values(self, param):
+        return [res.params[param.name] for res in self.results]
+
+    def _costs(self):
+        return [res.cost_min for res in self.results]
+
+    def _accs(self):
+        return [res.acc_max for res in self.results]
 
     @staticmethod
     def _path(dirpath, postfix=None):
