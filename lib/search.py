@@ -149,7 +149,11 @@ def search(data,
            data_val,
            params,
            train_function,
-           random=True):
+           random=True,
+           random_seed=None):
+
+    if random_seed is not None:
+        np.random.seed(random_seed)
 
     param_names = [p.name for p in params]
 
