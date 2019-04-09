@@ -280,3 +280,28 @@ class Cifar:
             axes[i, 0].set_ylabel(label, labelpad=60, rotation=0, size='large')
 
         plt.tight_layout(pad=0, w_pad=0, h_pad=0)
+
+
+class Text:
+    def __init__(self,
+                 data_dir,
+                 filename):
+
+        self._filename = os.path.join(data_dir, filename)
+
+        self._load()
+
+    def _load(self):
+        with open(self._filename, 'r') as f:
+            self.characters = sorted(set(f.read()))
+
+        self.num_characters = len(self.characters)
+
+        self._char_to_ind = {c: i for i, c in enumerate(self.characters)}
+        self._ind_to_char = {i: c for i, c in enumerate(self.characters)}
+
+    def index(self, char):
+        return self._char_to_ind[char]
+
+    def character(self, ind):
+        return self._ind_to_char[ind]
