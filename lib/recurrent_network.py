@@ -12,6 +12,7 @@ class RecurrentNetwork(Network):
         super().__init__(random_seed)
 
         self.input_size = input_size
+        self.hidden_state_size = hidden_state_size
 
         self.b = self._rand_param((hidden_state_size, 1))
         self.c = self._rand_param((input_size, 1))
@@ -25,8 +26,31 @@ class RecurrentNetwork(Network):
     def param_names(self):
         return ['b', 'c', 'U', 'W', 'V']
 
-    def evaluate(self, ds):
-        raise ValueError('TODO')
+    def evaluate(self, ds, return_loss=False):
+        P = np.empty((self.input_size, ds.n))
+
+        h = np.zeros((self.hidden_state_size, 1))
+
+        loss = 0
+        for i, (x, y) in enumerate(zip(ds.X.T, ds.Y.T)):
+            x = x[:, np.newaxis]
+            y = y[:, np.newaxis]
+
+            a = self.W @ h + self.U @ x + self.b
+            h = np.tanh(a)
+            o = self.V @ h + self.c
+
+            p = np.exp(o)
+            p /= p.sum(axis=0)
+
+            P[:, i] = np.squeeze(p)
+
+            loss += np.log(y.T @ p)
+
+        if return_loss:
+            return P, loss
+        else:
+            return P
 
     def cost(self, ds, return_loss=False):
         raise ValueError('TODO')
