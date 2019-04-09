@@ -3,7 +3,7 @@ import numpy as np
 from network import Network
 
 
-class Recurrent(Network):
+class RecurrentNetwork(Network):
     def __init__(self,
                  input_size,
                  hidden_state_size,
