@@ -20,9 +20,11 @@ class RecurrentNetwork(Network):
         self.W = self._rand_param((hidden_state_size, hidden_state_size))
         self.V = self._rand_param((input_size, hidden_state_size))
 
+    @property
     def params(self):
         return [self.b, self.c, self.U, self.W, self.V]
 
+    @property
     def param_names(self):
         return ['b', 'c', 'U', 'W', 'V']
 
