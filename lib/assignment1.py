@@ -1,5 +1,5 @@
 from history import TrainHistory
-from networks import SingleLayerFullyConnected
+from single_layer_fully_connected import SingleLayerFullyConnected
 
 import matplotlib.pyplot as plt
 
