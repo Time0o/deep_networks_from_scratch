@@ -126,4 +126,7 @@ class RecurrentNetwork(Network):
             grad_U += np.outer(grad_a, ds.X[:, t, np.newaxis])
             grad_b += grad_a
 
-        return [grad_U, grad_V, grad_W, grad_b, grad_c]
+        return self._clip_gradients([grad_U, grad_V, grad_W, grad_b, grad_c])
+
+    def _clip_gradients(self, grads, thresh=5):
+        return [np.maximum(np.minimum(grad, thresh), -thresh) for grad in grads]
