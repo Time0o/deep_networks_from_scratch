@@ -1,6 +1,13 @@
+from textwrap import wrap
+
 import numpy as np
 
+from history import TrainHistoryRecurrent
 from network import Network
+
+
+ETA_DEFAULT = 0.1
+N_UPDATES_DEFAULT = 100000
 
 
 class RecurrentNetwork(Network):
@@ -25,6 +32,9 @@ class RecurrentNetwork(Network):
         # biases
         self.b = np.zeros((hidden_state_size, 1))
         self.c = np.zeros((input_size, 1))
+
+        # adagrad
+        self.adamem = [np.zeros_like(param) for param in self.params]
 
     @property
     def params(self):
@@ -86,10 +96,11 @@ class RecurrentNetwork(Network):
         _, loss = self.evaluate(ds, return_loss=True)
         return loss
 
-    def synthesize(self, x_init, h_init, length):
+    def synthesize(self, x_init, length):
         Y = np.empty((self.input_size, length))
 
-        h = h_init
+        h = self.h.copy()
+
         x = x_init
 
         for i in range(length):
@@ -106,8 +117,102 @@ class RecurrentNetwork(Network):
 
         return Y
 
-    def _gradients(self, ds):
-        P, H = self.evaluate(ds, return_intermediate=True)
+    def update(self, grads, eta):
+        for param, grad, mem in zip(self.params, grads, self.adamem):
+            mem += grad * grad
+            param -= eta * grad / np.sqrt(mem + np.spacing(1))
+
+    def predict(self, ds):
+        raise ValueError("not implemented")
+
+    def accuracy(self, ds):
+        raise ValueError("not implemented")
+
+    def train(self,
+              text,
+              sequence_length,
+              eta=ETA_DEFAULT,
+              n_updates=N_UPDATES_DEFAULT,
+              loss_smoothing_factor=0.999,
+              verbose=False,
+              verbose_show_loss=True,
+              verbose_show_loss_frequency=1000,
+              verbose_show_samples=False,
+              verbose_show_samples_frequency=10000,
+              verbose_show_samples_length=200):
+
+        loss_smooth = []
+
+        update = 0
+        while update <= n_updates:
+            for e in range(0, len(text.text) - sequence_length - 1, sequence_length):
+                batch = text.sequence(beg=e,
+                                      end=e + sequence_length,
+                                      rep='indices_one_hot',
+                                      labeled=True)
+
+                # reset hidden state
+                if e == 0:
+                    self.h = np.zeros_like(self.h)
+
+                # forward pass
+                P, H, loss = self.evaluate(batch,
+                                           return_intermediate=True,
+                                           return_loss=True)
+
+                # update loss
+                if len(loss_smooth) == 0:
+                    loss_smooth.append(loss)
+                else:
+                    loss_smooth.append(loss_smoothing_factor * loss_smooth[-1] + \
+                                       (1 - loss_smoothing_factor) * loss)
+
+                # backward pass
+                grads = self._gradients(batch, evaluation=(P, H))
+
+                # update parameters
+                self.update(grads, eta)
+
+                # update hidden state
+                self.h = H[:, -1, np.newaxis]
+
+                # display progress
+                if verbose:
+                    if (verbose_show_loss and
+                        update % verbose_show_loss_frequency == 0):
+
+                        fmt = "iteration {}/{}: loss = {:.3e}"
+                        print(fmt.format(update, n_updates, loss_smooth[-1]))
+
+                    if (verbose_show_samples and
+                        update % verbose_show_samples_frequency == 0):
+
+                        synth = self.synthesize(
+                            x_init=batch.X[:, 0, np.newaxis],
+                            length=verbose_show_samples_length)
+
+                        synth = text.get_characters(synth, one_hot=True)
+
+                        synth = '\n'.join(wrap(synth, width=80))
+
+                        fmt = "iteration {}/{}:\n{}\n"
+                        print(fmt.format(update, n_updates, synth))
+
+                # check if done
+                update += 1
+                if update > n_updates:
+                    break
+
+        # reset hidden state
+        self.h = np.zeros_like(self.h)
+
+        return TrainHistoryRecurrent(loss_smooth)
+
+    def _gradients(self, ds, evaluation=None):
+        if evaluation is None:
+            P, H = self.evaluate(ds, return_intermediate=True)
+        else:
+            P, H = evaluation
 
         grad_o = -(ds.Y - P).T
         grad_a = np.zeros((self.hidden_state_size, 1))

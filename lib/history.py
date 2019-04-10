@@ -88,3 +88,39 @@ class TrainHistory:
             path += '_' + postfix
 
         return path + '.pickle'
+
+
+class TrainHistoryRecurrent:
+    def __init__(self, loss):
+        self.loss = loss
+
+    def visualize(self, ax=None):
+        if ax is None:
+            _, ax = plt.subplots(1, 1, figsize=(10, 5))
+
+        ax.plot(range(1, len(self.loss) + 1), self.loss)
+
+        ax.set_xlabel("Iteration")
+        ax.set_ylabel("Loss")
+
+        ax.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
+
+        ax.grid()
+
+    def save(self, dirpath, postfix=None):
+        with open(self._path(dirpath, postfix), 'wb') as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, dirpath, postfix=None):
+        with open(cls._path(dirpath, postfix), 'rb') as f:
+            return pickle.load(f)
+
+    @staticmethod
+    def _path(dirpath, postfix=None):
+        path = os.path.join(dirpath, 'history')
+
+        if postfix is not None:
+            path += '_' + postfix
+
+        return path + '.pickle'
