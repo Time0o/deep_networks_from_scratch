@@ -9,6 +9,7 @@ from network import Network
 
 ETA_DEFAULT = 0.1
 N_UPDATES_DEFAULT = 100000
+N_EPOCHS_DEFAULT = math.inf
 
 
 class RecurrentNetwork(Network):
@@ -36,6 +37,9 @@ class RecurrentNetwork(Network):
 
         # adagrad
         self.adamem = [np.zeros_like(param) for param in self.params]
+
+        # training loss memory
+        self.loss_smooth = None
 
     @property
     def params(self):
@@ -101,12 +105,16 @@ class RecurrentNetwork(Network):
         _, loss = self.evaluate(ds, return_loss=True)
         return loss
 
-    def synthesize(self, x_init, length):
+    def synthesize(self, length, init_one_hot=None, stop_character_one_hot=None):
         Y = np.empty((self.input_size, length))
 
         h = self.h.copy()
 
-        x = x_init
+        if init_one_hot is None:
+            x = np.zeros((self.input_size, 1))
+            x[np.random.randint(0, self.input_size)] = 1
+        else:
+            x = init_one_hot
 
         for i in range(length):
             a = self.W @ h + self.U @ x + self.b
@@ -117,6 +125,12 @@ class RecurrentNetwork(Network):
             p /= p.sum(axis=0)
 
             x = np.random.multinomial(1, np.squeeze(p))[:, np.newaxis]
+
+            if (stop_character_one_hot is not None and
+                np.array_equal(x, stop_character_one_hot)):
+
+                Y = Y[:, :i]
+                break
 
             Y[:, i] = np.squeeze(x)
 
@@ -135,10 +149,13 @@ class RecurrentNetwork(Network):
 
     def train(self,
               text,
-              sequence_length,
+              seq_length,
               eta=ETA_DEFAULT,
               n_updates=N_UPDATES_DEFAULT,
+              n_epochs=N_EPOCHS_DEFAULT,
+              stop_character=None,
               find_best_params=True,
+              continue_training=False,
               loss_smoothing_factor=0.999,
               verbose=False,
               verbose_show_loss=True,
@@ -148,18 +165,24 @@ class RecurrentNetwork(Network):
               verbose_show_samples_length=200,
               verbose_show_samples_wrap=50):
 
-        loss_smooth = []
+        if not continue_training or self.loss_smooth is None:
+            self.loss_smooth = []
 
-        if find_best_params:
-            loss_smooth_min = math.inf
-            best_params = [p.copy() for p in self.params]
+            if find_best_params:
+                self.loss_smooth_min = math.inf
+                self.best_params = [p.copy() for p in self.params]
 
         update = 0
+        epoch = 0
         while update <= n_updates:
-            for e in range(0, len(text.text) - sequence_length - 1, sequence_length):
+            for e in range(0, len(text.text), seq_length):
+                if e > len(text.text) - seq_length - 1 and stop_character is None:
+                    break
+
                 batch = text.sequence(beg=e,
-                                      end=e + sequence_length,
+                                      end=e + seq_length,
                                       rep='indices_one_hot',
+                                      stop_character=stop_character,
                                       labeled=True)
 
                 # reset hidden state
@@ -172,11 +195,13 @@ class RecurrentNetwork(Network):
                                            return_loss=True)
 
                 # update loss
-                if len(loss_smooth) == 0:
-                    loss_smooth.append(loss)
+                if len(self.loss_smooth) == 0:
+                    self.loss_smooth.append(loss)
                 else:
-                    loss_smooth.append(loss_smoothing_factor * loss_smooth[-1] + \
-                                       (1 - loss_smoothing_factor) * loss)
+                    tmp1 = loss_smoothing_factor * self.loss_smooth[-1]
+                    tmp2 = (1 - loss_smoothing_factor) * loss
+
+                    self.loss_smooth.append(tmp1 + tmp2)
 
                 # backward pass
                 grads = self._gradients(batch, evaluation=(P, H))
@@ -188,9 +213,10 @@ class RecurrentNetwork(Network):
                 self.h = H[:, -1, np.newaxis]
 
                 # update best parameters
-                if find_best_params and loss_smooth[-1] < loss_smooth_min:
-                    best_params = [p.copy() for p in self.params]
-                    loss_smooth_min = loss_smooth[-1]
+                if find_best_params:
+                    if self.loss_smooth[-1] < self.loss_smooth_min:
+                        self.best_params = [p.copy() for p in self.params]
+                        self.loss_smooth_min = self.loss_smooth[-1]
 
                 # display progress
                 if verbose:
@@ -198,7 +224,7 @@ class RecurrentNetwork(Network):
                         update % verbose_show_loss_frequency == 0):
 
                         fmt = "iteration {}/{}: loss = {:.3e}"
-                        print(fmt.format(update, n_updates, loss_smooth[-1]))
+                        print(fmt.format(update, n_updates, self.loss_smooth[-1]))
 
                     if (verbose_show_samples and
                         update % verbose_show_samples_frequency == 0):
@@ -220,14 +246,18 @@ class RecurrentNetwork(Network):
                 if update > n_updates:
                     break
 
+            epoch += 1
+            if epoch >= n_epochs:
+                break
+
         # reset hidden state
         self.h = np.zeros_like(self.h)
 
         # construct and return training history
-        history = TrainHistoryRecurrent(loss_smooth)
+        history = TrainHistoryRecurrent(self.loss_smooth)
 
         if find_best_params:
-            self.params = best_params
+            self.params = self.best_params
 
         history.add_final_network(self)
 

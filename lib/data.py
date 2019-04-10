@@ -1,4 +1,6 @@
+import json
 import os
+import string
 from functools import partial
 from glob import glob
 
@@ -292,23 +294,25 @@ class Cifar:
 
 
 class Text:
-    def __init__(self,
-                 data_dir,
-                 filename):
+    def __init__(self, text, characters=None):
+        self.text = text
 
-        self._filename = os.path.join(data_dir, filename)
-
-        self._load()
-
-    def _load(self):
-        with open(self._filename, 'r') as f:
-            self.text = f.read()
+        if characters is None:
             self.characters = sorted(set(self.text))
+        else:
+            self.characters = characters
 
         self.num_characters = len(self.characters)
 
         self._char_to_ind = {c: i for i, c in enumerate(self.characters)}
         self._ind_to_char = {i: c for i, c in enumerate(self.characters)}
+
+    @classmethod
+    def from_file(cls, data_dir, filename):
+        with open(os.path.join(data_dir, filename), 'r') as f:
+            text = f.read()
+
+        return cls(text)
 
     def get_index(self, char, one_hot=False):
         ind = self._char_to_ind[char]
@@ -338,17 +342,28 @@ class Text:
 
         return ''.join([self._ind_to_char[i] for i in inds])
 
-    def sequence(self, beg, end, rep='characters', labeled=False):
+    def sequence(self,
+                 beg,
+                 end,
+                 rep='characters',
+                 stop_character=None,
+                 labeled=False):
+
         X = self._sequence(beg, end, rep=rep)
 
         if labeled:
-            Y = self._sequence(beg + 1, end + 1, rep=rep)
+            Y = self._sequence(
+                beg + 1, end + 1, rep=rep, stop_character=stop_character)
+
             return Dataset(X, Y, Y.argmax(axis=0), visual=False)
         else:
             return X
 
-    def _sequence(self, beg, end, rep):
+    def _sequence(self, beg, end, rep, stop_character=None):
         seq = self.text[beg:end]
+
+        if stop_character is not None and end > len(self.text):
+            seq += stop_character
 
         if rep == 'characters':
             return seq
@@ -360,3 +375,38 @@ class Text:
             raise ValueError("invalid 'rep'")
 
         return seq
+
+
+class TrumpTweetArchive:
+    def __init__(self,
+                 data_dir,
+                 file_fmt,
+                 stop_character='\n'):
+
+        # get list of tweet files
+        batches = sorted(glob(os.path.join(data_dir, file_fmt)))
+
+        # read in tweets
+        allowed_characters = set(
+            filter(lambda c: ord(c) >= 32 and ord(c) <= 126, string.printable))
+
+        def filter_tweet(t):
+            return ''.join(filter(lambda c: c in allowed_characters, t))
+
+        self.tweets = []
+        for batch in batches:
+            with open(batch, 'r') as f:
+                self.tweets += [filter_tweet(t['text']) for t in json.load(f)]
+
+        self.text = Text(
+            text=None,
+            characters=sorted(set(''.join(self.tweets)) | {stop_character}))
+
+        # set stop character
+        self.stop_character = stop_character
+
+        self.stop_character_index = \
+            self.text.get_index(stop_character)
+
+        self.stop_character_one_hot = \
+            self.text.get_index(stop_character, one_hot=True)
