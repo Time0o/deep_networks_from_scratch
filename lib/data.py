@@ -332,16 +332,11 @@ class Text:
         else:
             return inds
 
-    def get_characters(self, inds, one_hot=False, decode=False):
+    def get_characters(self, inds, one_hot=False):
         if one_hot:
             inds = np.argmax(inds, axis=0)
 
-        sequence = ''.join([self._ind_to_char[i] for i in inds])
-
-        if decode:
-            sequence = bytes(sequence, 'utf-8').decode('unicode_escape')
-
-        return sequence
+        return ''.join([self._ind_to_char[i] for i in inds])
 
     def sequence(self, beg, end, rep='characters', labeled=False):
         X = self._sequence(beg, end, rep=rep)
