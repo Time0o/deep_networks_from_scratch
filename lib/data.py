@@ -314,7 +314,7 @@ class Text:
         ind = self._char_to_ind[char]
 
         if one_hot:
-            return np.eye(self.num_characters)[ind][:, np.newaxis]
+            return np.eye(self.num_characters, dtype=int)[ind][:, np.newaxis]
         else:
             return ind
 
@@ -328,7 +328,7 @@ class Text:
         inds = [self._char_to_ind[c] for c in chars]
 
         if one_hot:
-            return np.eye(self.num_characters)[inds].T
+            return np.eye(self.num_characters, dtype=int)[inds].T
         else:
             return inds
 
