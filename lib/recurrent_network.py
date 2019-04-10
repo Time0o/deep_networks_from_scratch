@@ -14,11 +14,17 @@ class RecurrentNetwork(Network):
         self.input_size = input_size
         self.hidden_state_size = hidden_state_size
 
-        self.b = self._rand_param((hidden_state_size, 1))
-        self.c = self._rand_param((input_size, 1))
+        # hidden state
+        self.h = np.zeros((hidden_state_size, 1))
+
+        # weights
         self.U = self._rand_param((hidden_state_size, input_size))
-        self.W = self._rand_param((hidden_state_size, hidden_state_size))
         self.V = self._rand_param((input_size, hidden_state_size))
+        self.W = self._rand_param((hidden_state_size, hidden_state_size))
+
+        # biases
+        self.b = np.zeros((hidden_state_size, 1))
+        self.c = np.zeros((input_size, 1))
 
     @property
     def params(self):
@@ -29,22 +35,30 @@ class RecurrentNetwork(Network):
         return ['b', 'c', 'U', 'W', 'V']
 
     def evaluate(self, ds, return_intermediate=False, return_loss=False):
+        # allocate result matrix
         P = np.empty((self.input_size, ds.n))
-        A = np.empty((self.hidden_state_size, ds.n))
-        H = np.empty((self.hidden_state_size, ds.n))
 
-        h = np.zeros((self.hidden_state_size, 1))
+        # allocate intermediate result matrices
+        if return_intermediate:
+            A = np.empty((self.hidden_state_size, ds.n))
+            H = np.empty((self.hidden_state_size, ds.n))
 
-        loss = 0
+        # initialize hidden state
+        h = self.h.copy()
+
+        if return_loss:
+            loss = 0
+
         for i, (x, y) in enumerate(zip(ds.X.T, ds.Y.T)):
             x = x[:, np.newaxis]
             y = y[:, np.newaxis]
 
             a = self.W @ h + self.U @ x + self.b
-            A[:, i] = np.squeeze(a)
-
             h = np.tanh(a)
-            H[:, i] = np.squeeze(h)
+
+            if return_intermediate:
+                A[:, i] = np.squeeze(a)
+                H[:, i] = np.squeeze(h)
 
             o = self.V @ h + self.c
 
@@ -52,7 +66,8 @@ class RecurrentNetwork(Network):
             p /= p.sum(axis=0)
             P[:, i] = np.squeeze(p)
 
-            loss += np.log(y.T @ p)
+            if return_loss:
+                loss += np.log(np.dot(y, p))
 
         ret = [P]
 
