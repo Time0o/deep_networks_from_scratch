@@ -40,12 +40,15 @@ class RecurrentNetwork(Network):
 
         # allocate intermediate result matrices
         if return_intermediate:
-            A = np.empty((self.hidden_state_size, ds.n))
-            H = np.empty((self.hidden_state_size, ds.n))
+            H = np.empty((self.hidden_state_size, ds.n + 1))
 
         # initialize hidden state
         h = self.h.copy()
 
+        if return_intermediate:
+            H[:, 0] = np.squeeze(h)
+
+        # initialize loss
         if return_loss:
             loss = 0
 
@@ -57,8 +60,7 @@ class RecurrentNetwork(Network):
             h = np.tanh(a)
 
             if return_intermediate:
-                A[:, i] = np.squeeze(a)
-                H[:, i] = np.squeeze(h)
+                H[:, i + 1] = np.squeeze(h)
 
             o = self.V @ h + self.c
 
@@ -67,12 +69,13 @@ class RecurrentNetwork(Network):
             P[:, i] = np.squeeze(p)
 
             if return_loss:
-                loss += np.log(np.dot(y, p))
+                loss -= np.log((y.T @ p).item())
 
+        # cobble together return value
         ret = [P]
 
         if return_intermediate:
-            ret += [A, H]
+            ret.append(H)
 
         if return_loss:
             ret.append(loss)
@@ -104,27 +107,23 @@ class RecurrentNetwork(Network):
         return Y
 
     def _gradients(self, ds):
-        P, A, H = self.evaluate(ds, return_intermediate=True)
-
-        grad_h = np.zeros((ds.n, self.hidden_state_size), dtype=self.PARAM_DTYPE)
-        grad_a = np.zeros((ds.n, self.hidden_state_size), dtype=self.PARAM_DTYPE)
+        P, H = self.evaluate(ds, return_intermediate=True)
 
         grad_o = -(ds.Y - P).T
+        grad_a = np.zeros((self.hidden_state_size, 1))
+
+        grad_U = np.zeros_like(self.U)
+        grad_V = grad_o.T @ H[:, 1:].T
+        grad_W = np.zeros_like(self.W)
+        grad_b = np.zeros_like(self.b)
         grad_c = grad_o.sum(axis=0)[:, np.newaxis]
-        grad_V = grad_o.T @ H.T
 
-        grad_h[ds.n - 1, :] = \
-            grad_o[ds.n - 1, :] @ self.V
+        for t in range(ds.n - 1, -1, -1):
+            grad_h = (grad_o[np.newaxis, t, :] @ self.V + grad_a.T @ self.W).T
+            grad_a = grad_h * (1 - H[:, t + 1, np.newaxis]**2)
 
-        grad_a[ds.n - 1, :] = \
-            grad_h[ds.n - 1, :] @ np.diag(1 - np.tanh(A[:, ds.n - 1])**2)
-
-        for t in range(ds.n - 2, -1, -1):
-            grad_h[t, :] = grad_o[t, :] @ self.V + grad_a[t + 1, :] @ self.W
-            grad_a[t, :] = grad_h[t, :] @ np.diag(1 - np.tanh(A[:, t])**2)
-
-        grad_b = grad_a.sum(axis=0)[:, np.newaxis]
-        grad_W = grad_a.T @ H.T
-        grad_U = grad_a.T @ ds.X.T
+            grad_W += np.outer(grad_a, H[:, t, np.newaxis])
+            grad_U += np.outer(grad_a, ds.X[:, t, np.newaxis])
+            grad_b += grad_a
 
         return [grad_U, grad_V, grad_W, grad_b, grad_c]
