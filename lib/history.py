@@ -94,6 +94,11 @@ class TrainHistoryRecurrent:
     def __init__(self, loss):
         self.loss = loss
 
+        self.final_network = None
+
+    def add_final_network(self, network):
+        self.final_network = network
+
     def visualize(self, ax=None):
         if ax is None:
             _, ax = plt.subplots(1, 1, figsize=(10, 5))

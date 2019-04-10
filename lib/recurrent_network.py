@@ -206,7 +206,10 @@ class RecurrentNetwork(Network):
         # reset hidden state
         self.h = np.zeros_like(self.h)
 
-        return TrainHistoryRecurrent(loss_smooth)
+        history = TrainHistoryRecurrent(loss_smooth)
+        history.add_final_network(self)
+
+        return history
 
     def _gradients(self, ds, evaluation=None):
         if evaluation is None:
