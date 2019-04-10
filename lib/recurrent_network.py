@@ -1,3 +1,4 @@
+import math
 from textwrap import wrap
 
 import numpy as np
@@ -133,6 +134,7 @@ class RecurrentNetwork(Network):
               sequence_length,
               eta=ETA_DEFAULT,
               n_updates=N_UPDATES_DEFAULT,
+              find_best_params=True,
               loss_smoothing_factor=0.999,
               verbose=False,
               verbose_show_loss=True,
@@ -142,6 +144,10 @@ class RecurrentNetwork(Network):
               verbose_show_samples_length=200):
 
         loss_smooth = []
+
+        if find_best_params:
+            loss_smooth_min = math.inf
+            best_params = [p.copy() for p in self.params]
 
         update = 0
         while update <= n_updates:
@@ -176,6 +182,11 @@ class RecurrentNetwork(Network):
                 # update hidden state
                 self.h = H[:, -1, np.newaxis]
 
+                # update best parameters
+                if find_best_params and loss_smooth[-1] < loss_smooth_min:
+                    best_params = [p.copy() for p in self.params]
+                    loss_smooth_min = loss_smooth[-1]
+
                 # display progress
                 if verbose:
                     if (verbose_show_loss and
@@ -206,7 +217,12 @@ class RecurrentNetwork(Network):
         # reset hidden state
         self.h = np.zeros_like(self.h)
 
+        # construct and return training history
         history = TrainHistoryRecurrent(loss_smooth)
+
+        if find_best_params:
+            self.params = best_params
+
         history.add_final_network(self)
 
         return history

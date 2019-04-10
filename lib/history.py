@@ -2,6 +2,7 @@ import os
 import pickle
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 class TrainHistory:
@@ -99,11 +100,14 @@ class TrainHistoryRecurrent:
     def add_final_network(self, network):
         self.final_network = network
 
-    def visualize(self, ax=None):
+    def visualize(self, show_min=True, ax=None):
         if ax is None:
             _, ax = plt.subplots(1, 1, figsize=(10, 5))
 
         ax.plot(range(1, len(self.loss) + 1), self.loss)
+
+        if show_min:
+            ax.axvline(np.argmin(self.loss) + 1, color='r', linestyle='--')
 
         ax.set_xlabel("Iteration")
         ax.set_ylabel("Loss")
