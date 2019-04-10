@@ -145,7 +145,8 @@ class RecurrentNetwork(Network):
               verbose_show_loss_frequency=1000,
               verbose_show_samples=False,
               verbose_show_samples_frequency=10000,
-              verbose_show_samples_length=200):
+              verbose_show_samples_length=200,
+              verbose_show_samples_wrap=50):
 
         loss_smooth = []
 
@@ -208,7 +209,8 @@ class RecurrentNetwork(Network):
 
                         synth = text.get_characters(synth, one_hot=True)
 
-                        synth = '\n'.join(wrap(synth, width=80))
+                        synth = '\n'.join(wrap(
+                            synth, width=verbose_show_samples_wrap))
 
                         fmt = "iteration {}/{}:\n{}\n"
                         print(fmt.format(update, n_updates, synth))
