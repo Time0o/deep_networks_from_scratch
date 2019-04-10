@@ -28,11 +28,11 @@ class RecurrentNetwork(Network):
 
     @property
     def params(self):
-        return [self.b, self.c, self.U, self.W, self.V]
+        return [self.U, self.V, self.W, self.b, self.c]
 
     @property
     def param_names(self):
-        return ['b', 'c', 'U', 'W', 'V']
+        return ['U', 'V', 'W', 'b', 'c']
 
     def evaluate(self, ds, return_intermediate=False, return_loss=False):
         # allocate result matrix
@@ -127,4 +127,4 @@ class RecurrentNetwork(Network):
         grad_W = grad_a.T @ H.T
         grad_U = grad_a.T @ ds.X.T
 
-        return [grad_b, grad_c, grad_U, grad_W, grad_V]
+        return [grad_U, grad_V, grad_W, grad_b, grad_c]
