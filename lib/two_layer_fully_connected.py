@@ -29,6 +29,10 @@ class TwoLayerFullyConnected(Network):
     def params(self):
         return [self.W1, self.W2, self.b1, self.b2]
 
+    @property.setter
+    def params(self, params):
+        self.W1, self.W2, self.b1, self.b2 = params
+
     @property
     def param_names(self):
         return ['W1', 'W2', 'b1', 'b2']

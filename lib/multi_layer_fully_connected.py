@@ -57,6 +57,13 @@ class MultiLayerFullyConnected(Network):
 
         return params
 
+    @property.setter
+    def params(self, params):
+        self.Ws, self.bs = params[:2]
+
+        if self.batchnorm:
+            self.gamma, self.beta = params[2:]
+
     @property
     def param_names(self):
         def names(params, fmt):

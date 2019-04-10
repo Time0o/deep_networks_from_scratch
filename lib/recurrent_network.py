@@ -41,6 +41,10 @@ class RecurrentNetwork(Network):
     def params(self):
         return [self.U, self.V, self.W, self.b, self.c]
 
+    @params.setter
+    def params(self, params):
+        self.U, self.V, self.W, self.b, self.c = params
+
     @property
     def param_names(self):
         return ['U', 'V', 'W', 'b', 'c']
