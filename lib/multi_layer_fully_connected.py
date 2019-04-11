@@ -91,23 +91,20 @@ class MultiLayerFullyConnected(MLPNetwork):
 
             if self.batchnorm:
                 # batchnorm
-                if training:
+                if training or self.mu_train is None:
                     m = np.mean(X, axis=1, keepdims=True)
-                    v = np.var(X, axis=1, keepdims=True)
+                else:
+                    m = self.mu_train[i]
 
+                if training or self.var_train is None:
+                    v = np.var(X, axis=1, keepdims=True)
+                else:
+                    v = self.var_train[i]
+
+                if training:
                     raw.append(X)
                     mu.append(m)
                     var.append(v)
-                else:
-                    if self.mu_train is None:
-                        m = np.mean(X, axis=1, keepdims=True)
-                    else:
-                        m = self.mu_train[i]
-
-                    if self.var_train is None:
-                        v = np.var(X, axis=1, keepdims=True)
-                    else:
-                        v = self.var_train[i]
 
                 X = np.diag((np.squeeze(v) + np.spacing(1))**-0.5) @ (X - m)
 
