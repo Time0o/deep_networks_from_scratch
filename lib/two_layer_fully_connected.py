@@ -29,7 +29,7 @@ class TwoLayerFullyConnected(MLPNetwork):
     def params(self):
         return [self.W1, self.W2, self.b1, self.b2]
 
-    @property.setter
+    @params.setter
     def params(self, params):
         self.W1, self.W2, self.b1, self.b2 = params
 

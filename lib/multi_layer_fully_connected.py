@@ -57,7 +57,7 @@ class MultiLayerFullyConnected(MLPNetwork):
 
         return params
 
-    @property.setter
+    @params.setter
     def params(self, params):
         self.Ws, self.bs = params[:2]
 
