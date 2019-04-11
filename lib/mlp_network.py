@@ -1,6 +1,8 @@
 import math
-import numpy as np
 from abc import abstractmethod
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 from _visualize_performance import _visualize_performance
 from history import TrainHistory
@@ -16,6 +18,7 @@ N_EPOCHS_DEFAULT = 1
 N_CYCLES_DEFAULT = 1
 HISTORY_PER_CYCLE_DEFAULT = 10
 N_DEAD_EPOCHS_MAX_DEFAULT = 1
+N_ETA_DEFAULT = 100
 
 
 class MLPNetwork(Network):
@@ -198,6 +201,72 @@ class MLPNetwork(Network):
         history.add_final_network(self)
 
         return history
+
+    def lr_range_test(self,
+                      ds,
+                      eta_low,
+                      eta_high,
+                      n_eta=N_ETA_DEFAULT,
+                      n_batch=N_BATCH_DEFAULT,
+                      logarithmic=False,
+                      verbose=False,
+                      ax=None):
+
+        # save initial parameters
+        params_init = [p.copy() for p in self.params]
+
+        # linear range of learning rates to iterate over
+        if logarithmic:
+            etas = np.logspace(eta_low, eta_high, n_eta)
+        else:
+            etas = np.linspace(eta_low, eta_high, n_eta)
+
+        # resulting accuracies
+        accs = []
+
+        i_eta = 0
+        while i_eta < len(etas):
+            for i in range(ds.n // n_batch):
+                if verbose:
+                    fmt = "profiling learning rate {}/{}"
+                    msg = fmt.format(i_eta + 1, len(etas))
+
+                    if i_eta == len(etas) - 1:
+                        print(msg.ljust(80), flush=True)
+                    else:
+                        print(msg.ljust(80) + "\r", end='', flush=True)
+
+                i_start = i * n_batch
+                i_end = (i + 1) * n_batch
+
+                gradients = self.gradients(ds.batch(i_start, i_end))
+
+                self.update(gradients, etas[i])
+
+                accs.append(self.accuracy(ds))
+
+                i_eta += 1
+                if i_eta == len(etas):
+                    break
+
+        # reset parameters
+        self.params = params_init
+
+        # plot result
+        if ax is None:
+            _, ax = plt.subplots(1, 1, figsize=(10, 5))
+
+        if logarithmic:
+            ax.semilogx(etas, accs)
+        else:
+            ax.plot(etas, accs)
+
+        ax.set_xlabel(r"$\eta$")
+        ax.set_ylabel("Accuracy")
+
+        ax.grid()
+
+        return etas, accs
 
     def visualize_performance(self, ds, ax=None, title=None):
         acc = self.accuracy(ds)
