@@ -393,14 +393,15 @@ class TrumpTweetArchive:
         def filter_tweet(t):
             return ''.join(filter(lambda c: c in allowed_characters, t))
 
-        self.tweets = []
+        tweets = []
         for batch in batches:
             with open(batch, 'r') as f:
-                self.tweets += [filter_tweet(t['text']) for t in json.load(f)]
+                tweets += [filter_tweet(t['text']) for t in json.load(f)]
 
-        self.text = Text(
-            text=None,
-            characters=sorted(set(''.join(self.tweets)) | {stop_character}))
+        characters = set(''.join(tweets)) | {stop_character}
+
+        self.tweets = [Text(tweet, characters=characters) for tweet in tweets]
+        self.text = Text(stop_character.join(tweets), characters=characters)
 
         # set stop character
         self.stop_character = stop_character
