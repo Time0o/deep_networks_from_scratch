@@ -69,12 +69,13 @@ class MLPNetwork(Network):
             for i in range(n_batches):
                 # display progress
                 if verbose:
-                    fmt = f"epoch {ep + 1}/{n_epochs}, batch {i + 1}/{n_batches}"
+                    fmt = "epoch {}/{}, batch {}/{}"
+                    msg = fmt.format(ep + 1, n_epochs, i + 1, n_batches)
 
                     if ep < n_epochs - 1 or i < (ds_train.n // n_batch) - 1:
-                        print(fmt.ljust(80) + "\r", end='', flush=True)
+                        print(msg.ljust(80) + "\r", end='', flush=True)
                     else:
-                        print(fmt.ljust(80), flush=True)
+                        print(msg.ljust(80), flush=True)
 
                 # form batch
                 i_start = i * n_batch
@@ -159,12 +160,12 @@ class MLPNetwork(Network):
                 # display progress
                 if verbose:
                     fmt = "update {}/{}"
-                    fmt = fmt.format(update + 1, n_updates)
+                    msg = fmt.format(update + 1, n_updates)
 
                     if update == n_updates - 1:
-                        print(fmt.ljust(80), flush=True)
+                        print(msg.ljust(80), flush=True)
                     else:
-                        print(fmt.ljust(80) + "\r", end='', flush=True)
+                        print(msg.ljust(80) + "\r", end='', flush=True)
 
                 # form batch
                 i_start = i * n_batch
