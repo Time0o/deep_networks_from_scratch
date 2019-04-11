@@ -1,10 +1,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from network import Network
+from mlp_network import MLPNetwork
 
 
-class SingleLayerFullyConnected(Network):
+class SingleLayerFullyConnected(MLPNetwork):
     def __init__(self,
                  input_size,
                  num_classes,

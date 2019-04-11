@@ -2,13 +2,13 @@ from itertools import chain
 
 import numpy as np
 
-from network import Network
+from mlp_network import MLPNetwork
 
 
 BATCHNORM_ALPHA_DEFAULT = 0.9
 
 
-class MultiLayerFullyConnected(Network):
+class MultiLayerFullyConnected(MLPNetwork):
     def __init__(self,
                  input_size,
                  hidden_nodes,

@@ -1,9 +1,9 @@
 import numpy as np
 
-from network import Network
+from mlp_network import MLPNetwork
 
 
-class TwoLayerFullyConnected(Network):
+class TwoLayerFullyConnected(MLPNetwork):
     def __init__(self,
                  input_size,
                  hidden_nodes,

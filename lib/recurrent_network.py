@@ -101,10 +101,6 @@ class RecurrentNetwork(Network):
 
         return ret[0] if len(ret) == 1 else ret
 
-    def cost(self, ds):
-        _, loss = self.evaluate(ds, return_loss=True)
-        return loss
-
     def synthesize(self, length, init_one_hot=None, stop_character_one_hot=None):
         Y = np.empty((self.input_size, length))
 
@@ -140,12 +136,6 @@ class RecurrentNetwork(Network):
         for param, grad, mem in zip(self.params, grads, self.adamem):
             mem += grad * grad
             param -= eta * grad / np.sqrt(mem + np.spacing(1))
-
-    def predict(self, ds):
-        raise ValueError("not implemented")
-
-    def accuracy(self, ds):
-        raise ValueError("not implemented")
 
     def train(self,
               text,
