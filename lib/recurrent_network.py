@@ -143,9 +143,9 @@ class RecurrentNetwork(Network):
               eta=ETA_DEFAULT,
               n_updates=N_UPDATES_DEFAULT,
               n_epochs=N_EPOCHS_DEFAULT,
-              stop_character=None,
-              find_best_params=True,
+              skip_incomplete=True,
               continue_training=False,
+              find_best_params=True,
               loss_smoothing_factor=0.999,
               verbose=False,
               verbose_show_loss=True,
@@ -162,17 +162,18 @@ class RecurrentNetwork(Network):
                 self.loss_smooth_min = math.inf
                 self.best_params = [p.copy() for p in self.params]
 
-        update = 0
-        epoch = 0
-        while update <= n_updates:
-            for e in range(0, len(text.text), seq_length):
-                if e > len(text.text) - seq_length - 1 and stop_character is None:
+            self.current_update = 0
+
+        current_epoch = 0
+
+        while self.current_update <= n_updates:
+            for e in range(0, len(text.text) - 1, seq_length):
+                if skip_incomplete and e > len(text.text) - seq_length - 1:
                     break
 
                 batch = text.sequence(beg=e,
                                       end=e + seq_length,
                                       rep='indices_one_hot',
-                                      stop_character=stop_character,
                                       labeled=True)
 
                 # reset hidden state
@@ -210,14 +211,17 @@ class RecurrentNetwork(Network):
 
                 # display progress
                 if verbose:
-                    if (verbose_show_loss and
-                        update % verbose_show_loss_frequency == 0):
+                    fmt = "update {}: "
+                    prefix = fmt.format(self.current_update)
 
-                        fmt = "iteration {}/{}: loss = {:.3e}"
-                        print(fmt.format(update, n_updates, self.loss_smooth[-1]))
+                    if (verbose_show_loss and
+                        self.current_update % verbose_show_loss_frequency == 0):
+
+                        fmt = "loss = {:.3e}"
+                        print(prefix + fmt.format(self.loss_smooth[-1]))
 
                     if (verbose_show_samples and
-                        update % verbose_show_samples_frequency == 0):
+                        self.current_update % verbose_show_samples_frequency == 0):
 
                         synth = self.synthesize(
                             x_init=batch.X[:, 0, np.newaxis],
@@ -229,15 +233,15 @@ class RecurrentNetwork(Network):
                             synth, width=verbose_show_samples_wrap))
 
                         fmt = "iteration {}/{}:\n{}\n"
-                        print(fmt.format(update, n_updates, synth))
+                        print(prefix + fmt.format(synth))
 
                 # check if done
-                update += 1
-                if update > n_updates:
+                self.current_update += 1
+                if self.current_update > n_updates:
                     break
 
-            epoch += 1
-            if epoch >= n_epochs:
+            current_epoch += 1
+            if current_epoch >= n_epochs:
                 break
 
         # reset hidden state

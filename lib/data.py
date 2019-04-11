@@ -1,6 +1,8 @@
+import html
 import json
 import os
 import string
+import textwrap
 from functools import partial
 from glob import glob
 
@@ -342,28 +344,19 @@ class Text:
 
         return ''.join([self._ind_to_char[i] for i in inds])
 
-    def sequence(self,
-                 beg,
-                 end,
-                 rep='characters',
-                 stop_character=None,
-                 labeled=False):
-
-        X = self._sequence(beg, end, rep=rep)
-
+    def sequence(self, beg, end, rep='characters', labeled=False):
         if labeled:
-            Y = self._sequence(
-                beg + 1, end + 1, rep=rep, stop_character=stop_character)
+            assert rep == 'indices_one_hot'
+
+            X = self._sequence(beg, min(end, len(self.text) - 1), rep=rep)
+            Y = self._sequence(beg + 1, min(end + 1, len(self.text)), rep=rep)
 
             return Dataset(X, Y, Y.argmax(axis=0), visual=False)
         else:
-            return X
+            return self._sequence(beg, end, rep=rep)
 
-    def _sequence(self, beg, end, rep, stop_character=None):
+    def _sequence(self, beg, end, rep):
         seq = self.text[beg:end]
-
-        if stop_character is not None and end > len(self.text):
-            seq += stop_character
 
         if rep == 'characters':
             return seq
@@ -378,11 +371,10 @@ class Text:
 
 
 class TrumpTweetArchive:
-    def __init__(self,
-                 data_dir,
-                 file_fmt,
-                 stop_character='\n'):
+    START_CHARACTER = '\t'
+    STOP_CHARACTER = '\n'
 
+    def __init__(self, data_dir, file_fmt):
         # get list of tweet files
         batches = sorted(glob(os.path.join(data_dir, file_fmt)))
 
@@ -390,24 +382,74 @@ class TrumpTweetArchive:
         allowed_characters = set(
             filter(lambda c: ord(c) >= 32 and ord(c) <= 126, string.printable))
 
-        def filter_tweet(t):
-            return ''.join(filter(lambda c: c in allowed_characters, t))
-
         tweets = []
         for batch in batches:
             with open(batch, 'r') as f:
-                tweets += [filter_tweet(t['text']) for t in json.load(f)]
+                tweets += [
+                    self._preprocess_tweet(t['text'])
+                    for t in json.load(f)
+                ]
 
-        characters = set(''.join(tweets)) | {stop_character}
+        self.characters = set(''.join(tweets)) | \
+                          {self.START_CHARACTER, self.STOP_CHARACTER}
 
-        self.tweets = [Text(tweet, characters=characters) for tweet in tweets]
-        self.text = Text(stop_character.join(tweets), characters=characters)
+        self.num_characters = len(self.characters)
 
-        # set stop character
-        self.stop_character = stop_character
+        self.tweets = [
+            Text(tweet, characters=self.characters)
+            for tweet in tweets
+        ]
 
-        self.stop_character_index = \
-            self.text.get_index(stop_character)
+        self.num_tweets = len(self.tweets)
 
-        self.stop_character_one_hot = \
-            self.text.get_index(stop_character, one_hot=True)
+    def get_index(self, char, one_hot=False):
+        return self.tweets[0].get_index(char, one_hot=one_hot)
+
+    def get_character(self, ind, one_hot=False):
+        return self.tweets[0].get_character(ind, one_hot=one_hot)
+
+    def get_indices(self, chars, one_hot=False):
+        return self.tweets[0].get_indices(chars, one_hot=one_hot)
+
+    def get_characters(self, inds, one_hot=False):
+        return self.tweets[0].get_characters(inds, one_hot=one_hot)
+
+    def get_start_character(self, rep='character'):
+        return self._get_special_character(self.START_CHARACTER, rep=rep)
+
+    def get_stop_character(self, rep='character'):
+        return self._get_special_character(self.STOP_CHARACTER, rep=rep)
+
+    def random_preview(self, n=10, wrap=50):
+        i = np.random.choice(range(len(self.tweets)), size=n, replace=False)
+
+        for j in i:
+            text = self.tweets[j].text
+            text = text.encode('unicode_escape').decode('utf-8')
+
+            print('\n'.join(textwrap.wrap(text)) + '\n')
+
+    def _preprocess_tweet(self, tweet):
+        # replace tabs and newlines by spaces
+        tweet = tweet.replace('\t', ' ').replace('\n', ' ')
+
+        # filter out non-ascii characters
+        tweet = ''.join(filter(lambda c: ord(c) >= 32 and ord(c) <= 126, tweet))
+
+        # decode html sequences
+        tweet = html.unescape(tweet)
+
+        # add start and stop characters
+        tweet = self.START_CHARACTER + tweet + self.STOP_CHARACTER
+
+        return tweet
+
+    def _get_special_character(self, char, rep):
+        if rep == 'character':
+            return char
+        elif rep == 'index':
+            return self.get_index(char)
+        elif rep == 'index_one_hot':
+            return self.get_index(char, one_hot=True)
+        else:
+            raise ValueError("invalid 'rep'")
