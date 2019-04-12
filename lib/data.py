@@ -98,12 +98,10 @@ class Dataset:
 
         for k in range(self.n):
             if verbose:
-                fmt = f"{k+1}/{self.n}"
+                msg = "{}/{}".format(k + 1, self.n)
 
-                if k < self.n - 1:
-                    print(fmt.ljust(80) + "\r", end='', flush=True)
-                else:
-                    print(fmt.ljust(80), flush=True)
+                end = '\n' if k == self.n - 1 else ''
+                print(fmt.ljust(80) + "\r", end=end, flush=True)
 
             img = _to_display(self.X[:, k])
 

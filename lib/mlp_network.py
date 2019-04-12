@@ -76,9 +76,11 @@ class MLPNetwork(Network):
                     msg = fmt.format(ep + 1, n_epochs, i + 1, n_batches)
 
                     if ep < n_epochs - 1 or i < (ds_train.n // n_batch) - 1:
-                        print(msg.ljust(80) + "\r", end='', flush=True)
+                        end = ''
                     else:
-                        print(msg.ljust(80), flush=True)
+                        end = '\n'
+
+                    print("\r" + msg.ljust(80), end=end, flush=True)
 
                 # form batch
                 i_start = i * n_batch
@@ -165,10 +167,8 @@ class MLPNetwork(Network):
                     fmt = "update {}/{}"
                     msg = fmt.format(update + 1, n_updates)
 
-                    if update == n_updates - 1:
-                        print(msg.ljust(80), flush=True)
-                    else:
-                        print(msg.ljust(80) + "\r", end='', flush=True)
+                    end = '\n' if update == n_updates - 1 else ''
+                    print("\r" + msg.ljust(80), end=end, flush=True)
 
                 # form batch
                 i_start = i * n_batch
@@ -231,10 +231,8 @@ class MLPNetwork(Network):
                     fmt = "profiling learning rate {}/{}"
                     msg = fmt.format(i_eta + 1, len(etas))
 
-                    if i_eta == len(etas) - 1:
-                        print(msg.ljust(80), flush=True)
-                    else:
-                        print(msg.ljust(80) + "\r", end='', flush=True)
+                    end = '\n' if i_eta == len(etas) - 1 else ''
+                    print(msg.ljust(80) + "\r", end=end, flush=True)
 
                 i_start = i * n_batch
                 i_end = (i + 1) * n_batch

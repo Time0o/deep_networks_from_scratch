@@ -31,7 +31,9 @@ def compare_gradients(network_constructor,
         grads_num = network.gradients(ds_sub, numerical=True, h=h)
         grads = network.gradients(ds_sub)
 
-        print(f"{dims} dimensions, {n} sample(s), lambda = {alpha}:\n")
+        fmt = "{} dimensions, {} sample(s), lambda = {}:\n"
+        msg = fmt.format(dims, n, alpha)
+        print(msg)
 
         for grad_num, grad, param in zip(grads_num, grads, network.param_names):
             print(param + ':')
