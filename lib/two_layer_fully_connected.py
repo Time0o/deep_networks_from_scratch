@@ -9,7 +9,7 @@ class TwoLayerFullyConnected(MLPNetwork):
                  hidden_nodes,
                  num_classes,
                  alpha=0,
-                 weight_init='he',
+                 weight_init='xavier',
                  random_seed=None):
 
         super().__init__(random_seed)
