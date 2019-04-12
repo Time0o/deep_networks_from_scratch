@@ -1,10 +1,12 @@
 import math
 from abc import abstractmethod
+from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from _visualize_performance import _visualize_performance
+from ensemble import EnsembleClassifier
 from history import TrainHistory
 from network import Network
 
@@ -142,6 +144,7 @@ class MLPNetwork(Network):
                      eta_ss=ETA_SS_DEFAULT,
                      n_batch=N_BATCH_DEFAULT,
                      n_cycles=N_CYCLES_DEFAULT,
+                     create_ensemble=False,
                      history_per_cycle=HISTORY_PER_CYCLE_DEFAULT,
                      shuffle=False,
                      verbose=False):
@@ -149,11 +152,16 @@ class MLPNetwork(Network):
         # keep track of loss and accuracy histories
         history = TrainHistory(store_learning_rate=True)
 
-        # update loop
-        n_updates = 2 * eta_ss * n_cycles
-        update = 0
-        done = False
+        # optionally build ensemble from parameters at local minima
+        if create_ensemble:
+            ensemble_params = []
 
+        # update loop
+        update = 1
+        n_updates = 2 * eta_ss * n_cycles
+        history_updates = []
+
+        done = False
         while not done:
             # optionally shuffle training data
             if shuffle:
@@ -165,9 +173,9 @@ class MLPNetwork(Network):
                 # display progress
                 if verbose:
                     fmt = "update {}/{}"
-                    msg = fmt.format(update + 1, n_updates)
+                    msg = fmt.format(update, n_updates)
 
-                    end = '\n' if update == n_updates - 1 else ''
+                    end = '\n' if update == n_updates else ''
                     print("\r" + msg.ljust(80), end=end, flush=True)
 
                 # form batch
@@ -175,7 +183,7 @@ class MLPNetwork(Network):
                 i_end = (i + 1) * n_batch
 
                 # determine current learning rate
-                t = update % (2 * eta_ss)
+                t = (update - 1) % (2 * eta_ss)
 
                 if t <= eta_ss:
                     eta = eta_min + t / eta_ss * (eta_max - eta_min)
@@ -190,15 +198,38 @@ class MLPNetwork(Network):
                 self.update(gradients, eta)
 
                 # extend history
-                if update % (2 * eta_ss // history_per_cycle) == 0:
+                if update == 1 or update % (2 * eta_ss // history_per_cycle) == 0:
                     history.extend(self, ds_train, ds_val)
+                    history_updates.append(update)
 
+                # optionally add weak learner to ensemble
+                if create_ensemble and update % (2 * eta_ss) == 0:
+                    ensemble_params.append([p.copy() for p in self.params])
+                    history.mark_point(update)
+
+                # increment update counter
                 update += 1
-                if update == n_updates:
+
+                if update > n_updates:
                     done = True
                     break
 
-        history.add_final_network(self)
+        # finalize history
+        history.set_domain(history_updates, 'Update Step')
+
+        # optionally build ensemble classifier
+        if create_ensemble:
+            ensemble_networks = []
+
+            for params in ensemble_params:
+                network = deepcopy(self)
+                network.params = params
+                ensemble_networks.append(network)
+
+            ensemble = EnsembleClassifier(ensemble_networks)
+            history.add_final_network(ensemble)
+        else:
+            history.add_final_network(self)
 
         return history
 

@@ -18,6 +18,9 @@ class TrainHistory:
             self.learning_rate = []
 
         self.final_network = None
+
+        self.domain = None
+        self.marked = []
         self.title = None
 
         self.length = 0
@@ -44,16 +47,30 @@ class TrainHistory:
     def add_title(self, title):
         self.title = title
 
-    def visualize(self, axes=None):
+    def set_domain(self, x, label):
+        self.domain = x
+
+    def mark_point(self, x):
+        self.marked.append(x)
+
+    def visualize(self, include_marked=True, axes=None):
         if axes is None:
             _, axes = plt.subplots(1, 2, figsize=(10, 5))
 
-        ep = range(1, self.length + 1)
+        if self.domain is None:
+            x = range(1, self.length + 1)
+        else:
+            x = self.domain
 
-        axes[0].plot(ep, self.train_cost, label="Training Cost")
-        axes[0].plot(ep, self.val_cost, label="Validation Cost")
-        axes[1].plot(ep, self.train_accuracy, label="Training Accuracy")
-        axes[1].plot(ep, self.val_accuracy, label="Validation Accuracy")
+        axes[0].plot(x, self.train_cost, label="Training Cost")
+        axes[0].plot(x, self.val_cost, label="Validation Cost")
+        axes[1].plot(x, self.train_accuracy, label="Training Accuracy")
+        axes[1].plot(x, self.val_accuracy, label="Validation Accuracy")
+
+        if include_marked:
+            for m in self.marked:
+                for ax in axes:
+                    ax.axvline(m, color='r', linestyle='--')
 
         axes[0].set_xlabel("Epoch")
         axes[0].set_ylabel("Loss")
