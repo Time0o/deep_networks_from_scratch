@@ -273,3 +273,12 @@ class MLPNetwork(Network):
         y_pred = self.predict(ds)
 
         _visualize_performance(ds, acc, y_pred, ax=ax, title=title)
+
+    @staticmethod
+    def _relu(H):
+        return np.maximum(H, 0)
+
+    @staticmethod
+    def _softmax(S):
+        P = np.exp(S)
+        return P / P.sum(axis=0)

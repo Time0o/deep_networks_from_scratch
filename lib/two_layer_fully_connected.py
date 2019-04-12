@@ -38,13 +38,9 @@ class TwoLayerFullyConnected(MLPNetwork):
         return ['W1', 'W2', 'b1', 'b2']
 
     def evaluate(self, ds, return_H=False):
-        H = self.W1 @ ds.X + self.b1
-        H[H < 0] = 0
+        H = self._relu(self.W1 @ ds.X + self.b1)
 
-        S = self.W2 @ H + self.b2
-
-        P = np.exp(S)
-        P /= P.sum(axis=0)
+        P = self._softmax(self.W2 @ H + self.b2)
 
         if return_H:
             return H, P

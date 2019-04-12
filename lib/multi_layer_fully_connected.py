@@ -114,15 +114,12 @@ class MultiLayerFullyConnected(MLPNetwork):
                 # scale and shift
                 X = self.gamma[i] * X + self.beta[i]
 
-            X[X < 0] = 0
+            X = self._relu(X)
 
             if training:
                 activations.append(X)
 
-        S = self.Ws[-1] @ X + self.bs[-1]
-
-        P = np.exp(S)
-        P /= P.sum(axis=0)
+        P = self._softmax(self.Ws[-1] @ X + self.bs[-1])
 
         if training:
             if self.batchnorm:
