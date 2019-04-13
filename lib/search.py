@@ -103,7 +103,7 @@ class SearchResultSeries:
             print("accuracy = {:.4f} ({})".format(
                 acc, ', '.join(param_strings)))
 
-    def visualize(self, param, param_=None):
+    def visualize(self, param, param_=None, log_axes=True):
         values = self._values(param)
         costs = self._costs()
         accs = self._accs()
@@ -120,15 +120,22 @@ class SearchResultSeries:
             for ax in ax_cost, ax_acc:
                 ax.set_xlabel(param.name)
 
-                if param.scale == 'log':
+                if log_axes and param.scale == 'log':
                     ax.set_xscale('log')
 
             plt.tight_layout()
         else:
-            values_ = self._values(_param)
+            values_ = self._values(param_)
 
             fig, ax = plt.subplots(1, 1, figsize=(10, 10))
             cax = fig.add_axes()
+
+            if log_axes:
+                if param.scale == 'log':
+                    ax.set_xscale('log')
+
+                if param_.scale == 'log':
+                    ax.set_yscale('log')
 
             grid = np.linspace(min(values), max(values), 100)
             grid_ = np.linspace(min(values_), max(values_), 100)
@@ -139,14 +146,18 @@ class SearchResultSeries:
 
             ax.contour(grid, grid_, gridd, colors='k')
             contour = ax.contourf(grid, grid_, gridd, cmap=cm.jet)
-            ax.scatter(values, values_, marker='x', color='k')
+
+            ax.scatter(values,
+                       values_,
+                       marker='o',
+                       facecolors='w',
+                       edgecolors='k',
+                       s=60)
 
             fig.colorbar(contour, cax=cax)
 
             ax.set_xlabel(param.name)
             ax.set_ylabel(param_.name)
-
-            # TODO: log
 
     def save(self, dirpath, postfix=None):
         with open(self._path(dirpath, postfix), 'wb') as f:
