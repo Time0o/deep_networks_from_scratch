@@ -89,7 +89,10 @@ class SearchResultSeries:
 
         print("best accuracies:")
 
-        for acc, ps in sorted(zip(accs, params), reverse=True)[:top]:
+        for i in np.argsort([-a for a in accs])[:top]:
+            ps = params[i]
+            acc = accs[i]
+
             param_strings = []
 
             for name, val in ps.items():
@@ -103,7 +106,7 @@ class SearchResultSeries:
             print("accuracy = {:.4f} ({})".format(
                 acc, ', '.join(param_strings)))
 
-    def visualize(self, param, param_=None, log_axes=True):
+    def visualize(self, param, param_=None):
         values = self._values(param)
         costs = self._costs()
         accs = self._accs()
@@ -120,7 +123,7 @@ class SearchResultSeries:
             for ax in ax_cost, ax_acc:
                 ax.set_xlabel(param.name)
 
-                if log_axes and param.scale == 'log':
+                if param.scale == 'log':
                     ax.set_xscale('log')
 
             plt.tight_layout()
@@ -129,13 +132,6 @@ class SearchResultSeries:
 
             fig, ax = plt.subplots(1, 1, figsize=(10, 10))
             cax = fig.add_axes()
-
-            if log_axes:
-                if param.scale == 'log':
-                    ax.set_xscale('log')
-
-                if param_.scale == 'log':
-                    ax.set_yscale('log')
 
             grid = np.linspace(min(values), max(values), 100)
             grid_ = np.linspace(min(values_), max(values_), 100)
@@ -158,6 +154,9 @@ class SearchResultSeries:
 
             ax.set_xlabel(param.name)
             ax.set_ylabel(param_.name)
+
+    def join(self, other):
+        return SearchResultSeries(self.results + other.results)
 
     def save(self, dirpath, postfix=None):
         with open(self._path(dirpath, postfix), 'wb') as f:
