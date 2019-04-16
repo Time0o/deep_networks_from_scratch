@@ -263,7 +263,7 @@ class MLPNetwork(Network):
                     msg = fmt.format(i_eta + 1, len(etas))
 
                     end = '\n' if i_eta == len(etas) - 1 else ''
-                    print(msg.ljust(80) + "\r", end=end, flush=True)
+                    print("\r" + msg.ljust(80), end=end, flush=True)
 
                 i_start = i * n_batch
                 i_end = (i + 1) * n_batch
