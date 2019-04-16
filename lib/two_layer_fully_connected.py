@@ -10,6 +10,7 @@ class TwoLayerFullyConnected(MLPNetwork):
                  num_classes,
                  alpha=0,
                  weight_init='xavier',
+                 dropout=None,
                  random_seed=None):
 
         super().__init__(random_seed)
@@ -19,6 +20,7 @@ class TwoLayerFullyConnected(MLPNetwork):
         self.num_classes = num_classes
 
         self.alpha = alpha
+        self.dropout = dropout
 
         self.W1 = self._rand_param((hidden_nodes, input_size), init=weight_init)
         self.W2 = self._rand_param((num_classes, hidden_nodes), init=weight_init)
@@ -39,6 +41,13 @@ class TwoLayerFullyConnected(MLPNetwork):
 
     def evaluate(self, ds, return_H=False):
         H = self._relu(self.W1 @ ds.X + self.b1)
+
+        if self.dropout is not None and self.dropout > 0:
+            # use inverted dropout
+            U = np.full_like(H, 1 / self.dropout)
+            U[np.random.rand(*H.shape) < self.dropout] = 0
+
+            H *= U
 
         P = self._softmax(self.W2 @ H + self.b2)
 
