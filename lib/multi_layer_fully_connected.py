@@ -15,6 +15,7 @@ class MultiLayerFullyConnected(MLPNetwork):
                  num_classes,
                  alpha=0,
                  weight_init='he',
+                 weight_std=None,
                  batchnorm=False,
                  batchnorm_alpha=BATCHNORM_ALPHA_DEFAULT,
                  random_seed=None):
@@ -38,7 +39,10 @@ class MultiLayerFullyConnected(MLPNetwork):
         for d1, d2 in zip([input_size] + hidden_nodes,
                           hidden_nodes + [num_classes]):
 
-            self.Ws.append(self._rand_param((d2, d1), init=weight_init))
+            self.Ws.append(self._rand_param((d2, d1),
+                           init=weight_init,
+                           std=weight_std))
+
             self.bs.append(np.zeros((d2, 1)))
 
         if batchnorm:

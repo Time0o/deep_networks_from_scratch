@@ -38,9 +38,9 @@ class Network(ABC):
         for i, param in enumerate(self.params):
             param -= eta * gradients[i]
 
-    def _rand_param(self, shape, init='standard'):
+    def _rand_param(self, shape, init='standard', std=PARAM_STD_DEFAULT):
         if init == 'standard':
-            f = PARAM_STD_DEFAULT
+            f = std
         elif init == 'xavier':
             f = 1 / np.sqrt(shape[1])
         elif init == 'he':
