@@ -83,6 +83,8 @@ class SearchResultSeries:
                 fmt = '{}: {} => {:2.3}'
                 print(fmt.format(i + 1, ','.join(param_values), acc))
 
+        return res
+
     def summarize(self, top=5):
         params = self._params()
         accs = self._accs()
