@@ -18,6 +18,7 @@ class MultiLayerFullyConnected(MLPNetwork):
                  weight_std=None,
                  batchnorm=False,
                  batchnorm_alpha=BATCHNORM_ALPHA_DEFAULT,
+                 dropout=None,
                  random_seed=None):
 
         super().__init__(random_seed)
@@ -31,6 +32,7 @@ class MultiLayerFullyConnected(MLPNetwork):
         self.alpha = alpha
         self.batchnorm = batchnorm
         self.batchnorm_alpha = batchnorm_alpha
+        self.dropout = dropout
 
         # initialize parameters
         self.Ws = []
@@ -119,6 +121,12 @@ class MultiLayerFullyConnected(MLPNetwork):
                 X = self.gamma[i] * X + self.beta[i]
 
             X = self._relu(X)
+
+            if self.dropout is not None and self.dropout > 0:
+                U = np.full_like(X, 1 / self.dropout)
+                U[np.random.rand(*X.shape) < self.dropout] = 0
+
+                X *= U
 
             if training:
                 activations.append(X)

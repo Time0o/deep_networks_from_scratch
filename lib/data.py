@@ -17,8 +17,16 @@ DATA_BATCH_FMT = 'data_batch_*.mat'
 TEST_BATCH_FMT = 'test_batch.mat'
 
 
-def _to_display(img, normalize=False):
-    img = img.reshape(3, 32, 32).transpose(1, 2, 0)
+def _to_image(vector):
+    return vector.reshape(3, 32, 32).transpose(1, 2, 0)
+
+
+def _to_vector(img):
+    return img.transpose(2, 0, 1).reshape(-1)
+
+
+def _to_display(vector, normalize=False):
+    img = _to_image(vector)
 
     if normalize:
         img = img / 255
@@ -81,7 +89,7 @@ class Dataset:
 
         return Dataset(X, Y, y)
 
-    def augment(self, jitter_ratio=1, verbose=False):
+    def augment_color(self, jitter_ratio=1, verbose=False):
         if not self.visual:
             raise ValueError("can only augment image data")
 
@@ -113,6 +121,36 @@ class Dataset:
 
         return Dataset(X_aug, self.Y, self.y)
 
+    def augment_orientation(self, flip=True, rot=False, verbose=False):
+        X_aug = self.X.copy()
+
+        if rot:
+            X_rot = X_aug.copy()
+            for _ in range(X_rot.shape[1]):
+                if verbose:
+                    print("rotating...")
+
+                for k in range(self.n):
+                    X_rot[:, k] = _to_vector(np.rot90(_to_image(X_rot[:, k])))
+
+                X_aug = np.hstack((X_aug, X_rot))
+
+        if flip:
+            if verbose:
+                print("flipping")
+
+            X_flip = X_aug.copy()
+            for k in range(X_flip.shape[1]):
+                X_flip[:, k] = _to_vector(np.fliplr(_to_image(X_flip[:, k])))
+
+            X_aug = np.hstack((X_aug, X_flip))
+
+        new_n = X_aug.shape[1]
+
+        new_Y = np.tile(self.Y, new_n // self.n)
+        new_y = np.tile(self.y, new_n // self.n)
+
+        return Dataset(X_aug, new_Y, new_y)
 
     def preview(self, w=3, h=3, shuffle=False):
         if not self.visual:
