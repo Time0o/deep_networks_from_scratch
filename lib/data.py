@@ -1,7 +1,6 @@
 import html
 import json
 import os
-import string
 import textwrap
 from functools import partial
 from glob import glob
@@ -106,7 +105,7 @@ class Dataset:
 
         for k in range(self.n):
             if verbose:
-                msg = "{}/{}".format(k + 1, self.n)
+                fmt = "{}/{}".format(k + 1, self.n)
 
                 end = '\n' if k == self.n - 1 else ''
                 print(fmt.ljust(80) + "\r", end=end, flush=True)
@@ -415,9 +414,6 @@ class TrumpTweetArchive:
         batches = sorted(glob(os.path.join(data_dir, file_fmt)))
 
         # read in tweets
-        allowed_characters = set(
-            filter(lambda c: ord(c) >= 32 and ord(c) <= 126, string.printable))
-
         tweets = []
         for batch in batches:
             with open(batch, 'r') as f:
