@@ -1,0 +1,193 @@
+\documentclass{article}
+
+\usepackage{float}
+\usepackage{svg}
+
+\begin{document}
+
+\title{DD2424 - Assignment 3}
+\author{Timo Nicolai}
+
+\maketitle
+
+\section{Gradient Checks}
+
+To verify that my analytical gradient calculations for networks with batch
+normalization are correct, I calculated the element-wise maximum relative
+difference between analytical and numerical parameter gradients for a three
+layer network with both hidden layers of size $50$ and $\lambda = 0.5$. I used
+a training batch of size $20$ with samples reduced to their first $10$
+dimensions to compute both types of gradients. I ignored the bias gradients
+since these tend to be very close to zero when batch normalization is enabled
+and thus typically exhibit high relative error in any case.
+Figure~\ref{fig:gradients} shows the results I obtained, the relative errors
+are small enough to conclude that my gradient implementation is very likely
+correct.
+
+\begin{figure}[H]
+  \centering
+    \begin{tabular}{|c|c|}
+    \hline
+    Parameter         & $\epsilon_{rel,max}$ \\
+    \hline
+    $\nabla W_1$      & $2.39e-4$            \\
+    \hline
+    $\nabla W_2$      & $1.43e-3$            \\
+    \hline
+    $\nabla W_3$      & $1.22e-4$            \\
+    \hline
+    $\nabla \gamma_1$ & $1.41e-6$            \\
+    \hline
+    $\nabla \gamma_2$ & $2.32e-6$            \\
+    \hline
+    $\nabla \beta_1$  & $5.17e-6$            \\
+    \hline
+    $\nabla \beta_2$  & $3.35e-5$            \\
+    \hline
+    \end{tabular}
+  \caption{Maximum relative gradient error between analytical and numerical
+           gradient. Numerical gradients obtained via simple forward difference
+           with $h = 1e-6$.}
+  \label{fig:gradients}
+\end{figure}
+
+\pagebreak
+
+\section{Initial Training}
+
+Figure~\ref{fig:three_layers} shows learning rate schedule as well as loss,
+cost and accuracy development for both training and validation set for a three
+layer network trained without batch normalization.
+Figure~\ref{fig:three_layers_bn} shows the same curves for a three layer
+network training \textbf{with} batch normalization.  Similarly,
+Figures~\ref{fig:nine_layers} and~\ref{fig:nine_layers_bn} show these curves
+for nine layer networks trained without and with batch normalization
+respectively\footnote{The assignment text describes a nine layer network while
+the report requirements mention a six layer network, I'll assume that the
+former is correct.}
+
+All networks were trained with the same hyperparameter settings
+($\lambda = 0.005$, $n_{batch} = 100$, $\eta_{min} = 1e-5$, $\eta_{max} =
+1e-1$, $n_s = 2250$) for two cycles. The hidden layers of these networks were
+sized in accordance with the assignment description and all weights were
+initialized with the He method.
+
+The figures show that batch normalization slightly improves the final validation
+error for both network architectures. Despite this, the nine layer network
+still performs considerably worse. The three layer network performs approximately
+achieves the $\approx53.8\%$ test accuracy reported in the assignment.
+
+\pagebreak
+
+\begin{figure}[H]
+  \centering
+    \includesvg[width=.6\textwidth]{../figures/learning_curves_three_layers.svg}
+  \caption{Learning curves for three layer network trained without batch
+           normalization.}
+  \label{fig:three_layers}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+    \includesvg[width=.6\textwidth]{../figures/learning_curves_three_layers_bn.svg}
+  \caption{Learning curves for three layer network trained with batch
+           normalization.}
+  \label{fig:three_layers_bn}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+    \includesvg[width=.6\textwidth]{../figures/learning_curves_nine_layers.svg}
+  \caption{Learning curves for nine layer network trained without batch
+           normalization.}
+  \label{fig:nine_layers}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+    \includesvg[width=.6\textwidth]{../figures/learning_curves_nine_layers_bn.svg}
+  \caption{Learning curves for nine layer network trained with batch
+           normalization.}
+  \label{fig:nine_layers_bn}
+\end{figure}
+
+\section{Parameter Search}
+
+I searched for a suitable value of $\lambda$ by first drawing ten random samples
+from the interval $[1e-5, 1e-1]$ (logarithmically) and then ``homing in'' on
+the interval $[1e-3, 1e-2]$ from which I drew another ten random samples.
+
+Figure~\ref{fig:coarse_search} visualizes the results of the initial coarse
+search, clearly showing that the best validation set accuracies are achieved
+in when $\lambda$ lies in the range $[1e-3, 1e-2]$. Figure~\ref{fig:fine_search}
+visualized the fine search results, the best found values of $\lambda$ and
+the corresponding achieved validation set accuracies are tabulated in
+Figure~\ref{fig:best_lambda}.
+
+\begin{figure}[H]
+  \centering
+    \includesvg[width=.6\textwidth]{../figures/search_three_layers_coarse.svg}
+  \caption{Coarse parameter search validation set costs and accuracies.}
+  \label{fig:coarse_search}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+    \includesvg[width=.6\textwidth]{../figures/search_three_layers_fine.svg}
+  \caption{Fine parameter search validation set costs and accuracies.}
+  \label{fig:fine_search}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+    \begin{tabular}{|c|c|}
+    \hline
+    $\lambda$ & Accuracy        \\
+    \hline
+    $3.51e-3$ & $\approx 0.553$ \\
+    \hline
+    $4.42e-3$ & $\approx 0.553$ \\
+    \hline
+    $5.19e-3$ & $\approx 0.552$ \\
+    \hline
+    \end{tabular}
+  \caption{Best values of $\lambda$ and associated validation set accuracies.}
+  \label{fig:best_lambda}
+\end{figure}
+
+\noindent
+Based on this I retrained the three layer network with batch normalization and
+$\lambda = 3.51e-3$ for three cycles. Figure~\ref{fig:three_layer_test}
+shows the trained network's test set confusion matrix with an overall accuracy
+of $54.4\%$.
+
+\begin{figure}[H]
+  \centering
+    \includesvg[width=.8\textwidth]{../figures/performance_three_layers_final.svg}
+  \caption{Test set performance of a three layer network trained with
+           $\lambda = 3.51e-3$ and batch normalization for three cycles.}
+  \label{fig:three_layer_test}
+\end{figure}
+
+\pagebreak
+
+\section{Parameter Initialization Sensitivity}
+
+I trained the networks as described in the assignment using a smaller
+$\eta_{ss} = 900$. Figure~\ref{fig:stabilization} shows the corresponding
+(training set) loss curves. It is evident, that batch normalization was able to
+prevent divergence for small values of $\sigma$. I presume that without batch
+normalization divergence occurs in these cases because the closer the initial
+weight values are to zero, the more gradient updates will tend to modify weights
+``in the same direction'' thus making training prone to divergence.
+
+\begin{figure}[H]
+  \centering
+    \includesvg[width=.6\textwidth]{../figures/three_layer_stabilization.svg}
+  \caption{Training set loss curves for a three layer network trained with
+           different weight initialization schemes and either with or without
+           batch normalization.}
+  \label{fig:stabilization}
+\end{figure}
+
+\end{document}

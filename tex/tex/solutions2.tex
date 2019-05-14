@@ -1,0 +1,228 @@
+\documentclass{article}
+
+\usepackage{float}
+\usepackage{svg}
+
+\begin{document}
+
+\title{DD2424 - Assignment 2}
+\author{Timo Nicolai}
+
+\maketitle
+
+\noindent
+I verified my implementation of the analytical gradient by computing the relative
+error with respect to the simple gradient calculated via forward difference.
+I reimplemented this numerical gradient calculation in Python.
+
+Figure~\ref{fig:gradients} shows the maximum relative errors for the gradient
+of both weight matrices and bias vectors, all of them are reasonably small so
+I assume that my gradient implementation is correct.
+
+\begin{figure}[H]
+  \centering
+    \footnotesize
+    \begin{tabular}{|c|c|c|c|}
+    \multicolumn{4}{c}{$\nabla W1$}                                 \\
+    \hline
+    Data Dimensions & Batch Size & $\lambda$ & $\epsilon_{rel,max}$ \\
+    \hline
+    20              & 1          & 0         & 3.66e-6              \\
+    \hline
+    20              & 1          & 0.5       & 1.12e-3              \\
+    \hline
+    20              & 20         & 0         & 1.13e-4              \\
+    \hline
+    20              & 20         & 0.5       & 9.92e-4              \\
+    \hline
+
+    \multicolumn{4}{c}{}                                            \\
+
+    \multicolumn{4}{c}{$\nabla W2$}                                 \\
+    \hline
+    Data Dimensions & Batch Size & $\lambda$ & $\epsilon_{rel,max}$ \\
+    \hline
+    20              & 1          & 0         & 2.54e-7              \\
+    \hline
+    20              & 1          & 0.5       & 7.92e-4              \\
+    \hline
+    20              & 20         & 0         & 2.30e-4              \\
+    \hline
+    20              & 20         & 0.5       & 7.72e-4              \\
+    \hline
+
+    \multicolumn{4}{c}{}                                            \\
+
+    \multicolumn{4}{c}{$\nabla b1$}                                 \\
+    \hline
+    Data Dimensions & Batch Size & $\lambda$ & $\epsilon_{rel,max}$ \\
+    \hline
+    20              & 1          & 0         & 4.72e-7              \\
+    \hline
+    20              & 1          & 0.5       & 7.09e-7              \\
+    \hline
+    20              & 20         & 0         & 8.48e-6              \\
+    \hline
+    20              & 20         & 0.5       & 1.76e-6              \\
+    \hline
+
+    \multicolumn{4}{c}{}                                            \\
+
+    \multicolumn{4}{c}{$\nabla b2$}                                 \\
+    \hline
+    Data Dimensions & Batch Size & $\lambda$ & $\epsilon_{rel,max}$ \\
+    \hline
+    20              & 1          & 0         & 2.41e-7              \\
+    \hline
+    20              & 1          & 0.5       & 2.58e-7              \\
+    \hline
+    20              & 20         & 0         & 5.70e-6              \\
+    \hline
+    20              & 20         & 0.5       & 3.55e-5              \\
+    \hline
+    \end{tabular}
+  \caption{Maximum relative gradient error between analytical and numerical
+           gradient. Maximum taken over all elements of a gradient matrix
+           resulting from the same random initialization. Numerical
+           gradient obtained via simple forward difference with $h = 1e-6$.}
+  \label{fig:gradients}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+    \includesvg[width=0.65\textwidth]{../figures/curves_default_one_cycle.svg}
+  \caption{Learning rate schedule and learning curves for $\eta_{min} = 1e-5$
+           $\eta_{max} = 1e-1$, $\lambda = 0.01$ and $n_s = 500$. 10 datapoints
+           per cycle.}
+  \label{fig:curves_default_one_cycle}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+    \includesvg[width=0.65\textwidth]{../figures/curves_default_three_cycles.svg}
+  \caption{Learning rate schedule and learning curves for $\eta_{min} = 1e-5$
+           $\eta_{max} = 1e-1$, $\lambda = 0.01$ and $n_s = 800$. 10 datapoints
+           per cycle.}
+  \label{fig:curves_default_three_cycles}
+\end{figure}
+
+\noindent
+Figure~\ref{fig:curves_default_one_cycle} and
+Figure~\ref{fig:curves_default_three_cycles} show reproductions of the learning
+curves given in the assignment. The peaks in the loss and cost curves roughly
+correspond to the peaks in the learning rate schedule. Intuitively, I would
+assume that the learning process tends to reach something akin to a local
+minimum around the time the learning rate reaches one of its minima and that
+increasing the learning rate then allows the training to ``break out'' of this
+minimum. I.e. a small increase in training cost is incurred with the potential
+to find a better local minimum during the next cycle and so on.
+Figure~\ref{fig:curves_default_three_cycles} shows this very well, we first
+reach a minimum in the cost curve at around 1500 updates and then a slightly
+better minimum at around 3500 updates.
+
+To find a good value for $\lambda$, I initially took 20 random samples $s_i$,
+$i \in \{1, \dots, 20\}$ from the uniform distribution over the interval $[-5,
+-1]$ and then calculated $10^{s_i}$ for each one of them. I trained with batch
+size 100 and the recommended step size (which works out to 900 in this case)
+for two cycles.
+
+Note that random search does not make a whole lot of sense when searching over
+a single parameter but 20 samples were nevertheless enough to get an
+impression of the overall influence of $\lambda$ on the validation performance.
+
+Figure~\ref{fig:search_coarse} shows an overview of the sampled values of
+$\lambda$ (here and throughout the code named \textit{alpha}) and the
+corresponding validation set costs and accuracies after two cycles of training.
+Sadly, it seems that as in assignment one, there is no clear benefit to using
+weak regularization over no regularization at all. The best achieved
+validation accuracies and the corresponding values of $\lambda$ are tabulated
+in Figure~\ref{fig:search_coarse_best}.
+
+\begin{figure}[H]
+  \centering
+    \includesvg[width=0.8\textwidth]{../figures/search_coarse.svg}
+  \caption{Coarse search results.}
+  \label{fig:search_coarse}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+    \footnotesize
+    \begin{tabular}{|c|c|c|}
+    \hline
+    rank   & $\lambda$  & $acc_{val}$      \\
+    \hline
+    1      & 0.00176    & $\approx$ 51.5\% \\
+    \hline
+    2      & 0.00208    & $\approx$ 51.4\% \\
+    \hline
+    3      & 3.281e-4   & $\approx$ 51.3\% \\
+    \hline
+    \end{tabular}
+  \caption{Coarse search best validation accuracies and corresponding values of
+           $\lambda$.}
+  \label{fig:search_coarse_best}
+\end{figure}
+
+\noindent
+I decided to perform the fine tuned search over the logarithmic range $[-3.5,
+-2,5]$ because the two best results from the coarse search both fall within
+this range (although they are not significantly better then those achieved for
+very low values of $\lambda$). Figure~\ref{fig:search_fine} again shows the
+sampled values of $\lambda$ and the corresponding achieved costs and accuracies
+and Figure~\ref{fig:search_fine_best} shows the best achieved validation
+accuracies and corresponding values of $\lambda$.
+
+\begin{figure}[H]
+  \centering
+    \includesvg[width=0.8\textwidth]{../figures/search_fine.svg}
+  \caption{Fine grained search results.}
+  \label{fig:search_fine}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+    \footnotesize
+    \begin{tabular}{|c|c|c|}
+    \hline
+    rank   & $\lambda$  & $acc_{val}$      \\
+    \hline
+    1      & 0.00164    & $\approx$ 52.6\% \\
+    \hline
+    2      & 0.00111    & $\approx$ 52.6\% \\
+    \hline
+    3      & 0.00127    & $\approx$ 52.5\% \\
+    \hline
+    \end{tabular}
+  \caption{Fine tuned search best validation accuracies and corresponding values
+           of $\lambda$.}
+  \label{fig:search_fine_best}
+\end{figure}
+
+\noindent
+Using the best value of $\lambda$ ($\approx 0.00164$) I trained on 49.000
+training samples with step size 980 for three cycles.
+Figure~\ref{fig:curves_final_three_cycles} shows the corresponding learning
+curves and Figure~\ref{fig:performance_final_three_cycles} shows the trained
+networks performance on the test set. At 52\% it's already around 10\% higher
+than the best network trained in the last assignment.
+
+\begin{figure}[H]
+  \centering
+    \includesvg[width=0.65\textwidth]{%
+        ../figures/curves_final_three_cycles.svg}
+  \caption{Learning curves for the final network with optimized
+           regularization parameter trained on 49.000 training samples.}
+  \label{fig:curves_final_three_cycles}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+    \includesvg[width=0.65\textwidth]{%
+        ../figures/performance_final_three_cycles.svg}
+  \caption{Test set performance of the final network with optimized
+           regularization parameter trained on 49.000 training samples.}
+  \label{fig:performance_final_three_cycles}
+\end{figure}
+
+\end{document}

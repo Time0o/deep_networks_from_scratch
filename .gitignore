@@ -9,3 +9,11 @@ figures/*
 
 pickle/*
 !pickle/.gitkeep
+
+tex/*
+!tex/Makefile
+!tex/tex
+!tex/out
+tex/out/*
+!tex/out/.gitkeep
+!tex/pdf
